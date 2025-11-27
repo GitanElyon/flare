@@ -4,11 +4,11 @@ Flare is a customizable, lightweight, terminal-based application launcher for Li
 
 # Features
 
-- **Fast Scanning**: Automatically detects applications from standard `.desktop` file locations (`/usr/share/applications`, `~/.local/share/applications`).
-- **TUI Interface**: Clean, terminal-based user interface.
-- **Instant Filtering**: Real-time search filtering as you type.
-- **Keyboard Centric**: Designed for efficiency with intuitive keybindings.
-- **Highly Customizable**: Extensive configuration options for appearance and behavior.
+- **Fast scanning**: Automatically detects applications from standard `.desktop` file locations (`/usr/share/applications`, `~/.local/share/applications`).
+- **TUI interface**: Clean, terminal-based user interface.
+- **Instant filtering**: Real-time search filtering as you type.
+- **Keyboard-centric**: Designed for efficiency with intuitive keybindings.
+- **Highly customizable**: Extensive configuration options for appearance and behavior.
 
 # Installation
 
@@ -17,12 +17,12 @@ Ensure you have a recent stable Rust toolchain (1.77+) installed via [rustup](ht
 ### Quick install (recommended)
 
 ```bash
-git clone https://github.com/yourusername/flare.git
+git clone https://github.com/GitanElyon/flare.git
 cd flare
 cargo install --locked --path .
 ```
 
-This places the `flare` binary in `~/.cargo/bin`, which is already on your `$PATH` if you installed Rust via rustup. Update to the latest commit any time with:
+This puts the `flare` binary in `~/.cargo/bin`, which should be on your `$PATH` to run it, and already will be if you installed Rust via rustup. Update to the latest commit any time with:
 
 ```bash
 cd /path/to/flare
@@ -33,7 +33,7 @@ cargo install --locked --path .
 ### Manual build
 
 ```bash
-git clone https://github.com/yourusername/flare.git
+git clone https://github.com/GitanElyon/flare.git
 cd flare
 cargo build --release
 sudo install -Dm755 target/release/flare /usr/local/bin/flare
@@ -43,13 +43,13 @@ Use the manual path if you prefer to inspect the build artifacts yourself or pac
 
 # Usage
 
-You can either run `flare` from your terminal, or set it up as a hotkey application launcher.
+You can run `flare` from your terminal, or set it up as a hotkey application launcher.
 
 Flare can easily be used as an application launcher in place of `rofi` or `wofi`. To set it up, bind your desired hotkey to open a floating terminal running the `flare` command.
 
-Example in my hyprland config:
+Example for Hyprland config:
 
-```bash
+```conf
 bind = $mod, space, exec, [float] $terminal -e flare
 ```
 
@@ -65,12 +65,14 @@ bind = $mod, space, exec, [float] $terminal -e flare
 
 # Configuration
 
-Currently, Flare scans the following standard XDG directories:
+As detailed in the [Flare Configuration Guide](./DOCS.md), Flare reads its configuration from `~/.config/flare/config.toml`. The file is created automatically the first time you run the launcher. Edits are hot-loaded on restart.
+
+[Currently]( https://github.com/pop-os/freedesktop-desktop-entry/blob/main/src/lib.rs#L656 ), Flare scans the following standard XDG directories:
 - `/usr/share/applications`
 - `/usr/local/share/applications`
 - `~/.local/share/applications`
 
 # License
 
-Flare has an MIT license, so feel free to submit a PR.
+Flare has an MIT license. Feel free to submit a PR.
 
