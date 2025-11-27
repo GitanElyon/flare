@@ -4,22 +4,20 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+use freedesktop_desktop_entry::{Iter, default_paths, get_languages_from_env};
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 use std::{
-    fs::File,
-    io::{self, BufRead, BufReader},
-    path::Path,
-    process::Command,
+    io,
+    process::{Command, Stdio},
 };
-use walkdir::WalkDir;
 
 #[derive(Debug, Clone)]
 struct AppEntry {
     name: String,
-    exec: String,
+    exec_args: Vec<String>,
 }
 
 struct App {
@@ -80,118 +78,45 @@ impl App {
     fn launch_selected(&mut self) {
         if let Some(i) = self.list_state.selected() {
             if let Some(entry) = self.filtered_entries.get(i) {
-                // Clean up exec command (remove %u, %F placeholders common in desktop files)
-                let cmd_str = entry
-                    .exec
-                    .split_whitespace()
-                    .filter(|s| !s.starts_with('%'))
-                    .collect::<Vec<_>>()
-                    .join(" ");
+                if let Some((cmd, args)) = entry.exec_args.split_first() {
+                    let spawn_result = Command::new(cmd)
+                        .args(args)
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .spawn();
 
-                // Fork/spawn the process
-                let _ = Command::new("sh")
-                    .arg("-c")
-                    .arg(format!("{} &", cmd_str)) // Run in background
-                    .spawn();
-
-                self.should_quit = true;
+                    if spawn_result.is_ok() {
+                        self.should_quit = true;
+                    }
+                }
             }
         }
     }
 }
 
 fn scan_desktop_files() -> Vec<AppEntry> {
-    let mut entries = Vec::new();
-    let dirs = vec![
-        "/usr/share/applications",
-        "/usr/local/share/applications",
-        // Add user local dir: ~/.local/share/applications
-    ];
+    let locales = get_languages_from_env();
+    let locale_slice = locales.as_slice();
 
-    let mut user_dir = dirs.clone();
-    if let Ok(home) = std::env::var("HOME") {
-        user_dir.push(&format!("{}/.local/share/applications", home));
-    }
-    // Fix: user_dir contains strings that need to be owned or static,
-    // simpler to just iterate paths directly.
-    let paths_to_scan = if let Ok(home) = std::env::var("HOME") {
-        vec![
-            "/usr/share/applications".to_string(),
-            "/usr/local/share/applications".to_string(),
-            format!("{}/.local/share/applications", home),
-        ]
-    } else {
-        vec![
-            "/usr/share/applications".to_string(),
-            "/usr/local/share/applications".to_string(),
-        ]
-    };
+    let mut entries: Vec<AppEntry> = Iter::new(default_paths())
+        .entries(Some(locale_slice))
+        .filter(|entry| !entry.no_display() && !entry.hidden())
+        .filter_map(|entry| {
+            let exec_args = entry.parse_exec().ok()?;
+            let name = entry
+                .full_name(locale_slice)
+                .or_else(|| entry.name(locale_slice))
+                .map(|cow| cow.into_owned())
+                .unwrap_or_else(|| entry.appid.clone());
 
-    for dir in paths_to_scan {
-        if !Path::new(&dir).exists() {
-            continue;
-        }
-        for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
-            if entry
-                .path()
-                .extension()
-                .map_or(false, |ext| ext == "desktop")
-            {
-                if let Some(app) = parse_desktop_file(entry.path()) {
-                    entries.push(app);
-                }
-            }
-        }
-    }
+            Some(AppEntry { name, exec_args })
+        })
+        .collect();
 
-    // Sort and deduplicate by name
     entries.sort_by(|a, b| a.name.cmp(&b.name));
     entries.dedup_by(|a, b| a.name == b.name);
     entries
-}
-
-fn parse_desktop_file(path: &Path) -> Option<AppEntry> {
-    let file = File::open(path).ok()?;
-    let reader = BufReader::new(file);
-
-    let mut name = None;
-    let mut exec = None;
-    let mut is_desktop_entry = false;
-    let mut no_display = false;
-
-    for line in reader.lines().filter_map(|l| l.ok()) {
-        let line = line.trim();
-        if line == "[Desktop Entry]" {
-            is_desktop_entry = true;
-            continue;
-        }
-
-        // Only parse the main section
-        if line.starts_with('[') && line != "[Desktop Entry]" {
-            is_desktop_entry = false;
-        }
-
-        if !is_desktop_entry {
-            continue;
-        }
-
-        if line.starts_with("Name=") && name.is_none() {
-            name = Some(line.trim_start_matches("Name=").to_string());
-        } else if line.starts_with("Exec=") && exec.is_none() {
-            exec = Some(line.trim_start_matches("Exec=").to_string());
-        } else if line == "NoDisplay=true" {
-            no_display = true;
-        }
-    }
-
-    if no_display {
-        return None;
-    }
-
-    match (name, exec) {
-        (Some(name), Some(exec)) => Some(AppEntry { name, exec }),
-        _ => None,
-    }
 }
 
 fn main() -> Result<()> {
