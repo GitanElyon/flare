@@ -2,10 +2,19 @@
 
 Flare reads its configuration from `~/.config/flare/config.toml`. The file is created automatically the first time you run the launcher. Edits are hot-loaded on restart.
 
+## Getting Started
+
+1. Launch Flare once so the default config is written.
+2. Open `~/.config/flare/config.toml` in your editor of choice.
+3. Tweak the sections you care about (colors, borders, titles, etc.).
+4. Restart Flare to see the new look. Keep the app running in one terminal while you edit in another to iterate quickly.
+
+You can also copy configs between machines—Flare only cares that the TOML structure matches the sections described below.
+
 ## File Overview
 
 ```toml
-[[general]
+[general]
 rounded-corners = true
 show-borders = true
 highlight-symbol = "» "
@@ -67,6 +76,20 @@ Additional section-specific options:
 
 - `general.highlight-symbol`: string drawn in front of the selected entry. Set to an empty string (or disable `entry-selected.visible`) to hide it.
 - `text.alignment`: aligns entry labels within the list (`left`, `center`, `right`).
+
+### General Section
+
+The `[general]` block controls defaults for the rest of the UI:
+
+- `rounded-corners`: switches every visible border between plain and rounded corners. Individual sections can opt out via `rounded = false`.
+- `show-borders`: quick way to remove all borders. Override per section with `borders = true/false` when you want one box framed but another bare.
+- `highlight-symbol`: string prepended to the focused entry. Multi-character strings work fine—emoji too, if your font supports them.
+
+### Color Syntax
+
+- Hex colors use `#RRGGBB` or `#RRGGBBAA`. The optional `AA` alpha channel lets you get subtler shades against the terminal background.
+- Named colors accept the same set Ratatui exposes (`blue`, `light-red`, `gray`, etc.). Unknown names are ignored, so double-check spelling if a color does not change.
+- When alpha is present, Flare pre-multiplies it before drawing, so `#1e1e2e80` produces a translucent version of the same hue.
 
 ## Visual Structure
 

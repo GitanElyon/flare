@@ -12,17 +12,34 @@ Flare is a customizable, lightweight, terminal-based application launcher for Li
 
 # Installation
 
-Ensure you have Rust and Cargo installed.
+Ensure you have a recent stable Rust toolchain (1.77+) installed via [rustup](https://rustup.rs/).
+
+### Quick install (recommended)
+
+```bash
+git clone https://github.com/yourusername/flare.git
+cd flare
+cargo install --locked --path .
+```
+
+This places the `flare` binary in `~/.cargo/bin`, which is already on your `$PATH` if you installed Rust via rustup. Update to the latest commit any time with:
+
+```bash
+cd /path/to/flare
+git pull
+cargo install --locked --path .
+```
+
+### Manual build
 
 ```bash
 git clone https://github.com/yourusername/flare.git
 cd flare
 cargo build --release
+sudo install -Dm755 target/release/flare /usr/local/bin/flare
 ```
 
-The binary will be located at `target/release/flare`. You can copy this to somewhere in your `$PATH` (e.g., `/usr/local/bin`).
-
-I will streamline this process before the first offial release.
+Use the manual path if you prefer to inspect the build artifacts yourself or package Flare for a distribution.
 
 # Usage
 
