@@ -1,7 +1,11 @@
 use crate::config::AppConfig;
 use freedesktop_desktop_entry::{Iter, default_paths, get_languages_from_env};
 use ratatui::widgets::ListState;
-use std::process::{Command, Stdio};
+use std::{
+    io,
+    os::unix::process::CommandExt,
+    process::{Command, Stdio},
+};
 
 #[derive(Debug, Clone)]
 pub struct AppEntry {
@@ -71,15 +75,30 @@ impl App {
         if let Some(i) = self.list_state.selected() {
             if let Some(entry) = self.filtered_entries.get(i) {
                 if let Some((cmd, args)) = entry.exec_args.split_first() {
-                    let spawn_result = Command::new(cmd)
+                    let mut command = Command::new(cmd);
+                    command
                         .args(args)
                         .stdin(Stdio::null())
                         .stdout(Stdio::null())
-                        .stderr(Stdio::null())
-                        .spawn();
+                        .stderr(Stdio::null());
 
-                    if spawn_result.is_ok() {
-                        self.should_quit = true;
+                    unsafe {
+                        command.pre_exec(|| {
+                            libc::setsid();
+                            libc::signal(libc::SIGHUP, libc::SIG_IGN);
+                            Ok(()) as io::Result<()>
+                        });
+                    }
+
+                    match command.spawn() {
+                        Ok(_) => {
+                            self.should_quit = true;
+                            self.status_message = None;
+                        }
+                        Err(err) => {
+                            self.status_message =
+                                Some(format!("Failed to launch {}: {}", entry.name, err));
+                        }
                     }
                 }
             }

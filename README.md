@@ -1,6 +1,6 @@
 # Overview
 
-Flare is a lightweight, terminal-based application launcher for Linux. Built with Rust and Ratatui, it combines the visual list style of tools like `rofi` or `wofi` with the simplicity and speed of `dmenu`.
+Flare is a customizable, lightweight, terminal-based application launcher for Linux. Built with Rust and Ratatui, it combines the visual list style of tools like `rofi` or `wofi` with the simplicity and speed of `dmenu`.
 
 # Features
 
@@ -8,6 +8,7 @@ Flare is a lightweight, terminal-based application launcher for Linux. Built wit
 - **TUI Interface**: Clean, terminal-based user interface.
 - **Instant Filtering**: Real-time search filtering as you type.
 - **Keyboard Centric**: Designed for efficiency with intuitive keybindings.
+- **Highly Customizable**: Extensive configuration options for appearance and behavior.
 
 # Installation
 
@@ -25,7 +26,15 @@ I will streamline this process before the first offial release.
 
 # Usage
 
-Run `flare` from your terminal. It works best when bound to a global hotkey in your window manager (e.g., `Super+D` or `Alt+Space`).
+You can either run `flare` from your terminal, or set it up as a hotkey application launcher.
+
+Flare can easily be used as an application launcher in place of `rofi` or `wofi`. To set it up, bind your desired hotkey to open a floating terminal running the `flare` command.
+
+Example in my hyprland config:
+
+```bash
+bind = $mod, space, exec, [float] $terminal -e flare
+```
 
 ## Keybindings
 

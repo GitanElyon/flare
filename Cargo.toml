@@ -11,3 +11,4 @@ freedesktop-desktop-entry = "0.7.19"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"
 dirs = "5.0"
+libc = "0.2"
