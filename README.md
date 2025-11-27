@@ -47,9 +47,9 @@ You can run `flare` from your terminal, or set it up as a hotkey application lau
 
 Flare can easily be used as an application launcher in place of `rofi` or `wofi`. To set it up, bind your desired hotkey to open a floating terminal running the `flare` command.
 
-Example for hyprland config:
+Example for Hyprland config:
 
-```hyprland
+```conf
 bind = $mod, space, exec, [float] $terminal -e flare
 ```
 
@@ -64,6 +64,8 @@ bind = $mod, space, exec, [float] $terminal -e flare
 | **Backspace** | Delete character from search |
 
 # Configuration
+
+As detailed in the [Flare Configuration Guide](./DOCS.md), Flare reads its configuration from `~/.config/flare/config.toml`. The file is created automatically the first time you run the launcher. Edits are hot-loaded on restart.
 
 [Currently]( https://github.com/pop-os/freedesktop-desktop-entry/blob/main/src/lib.rs#L656 ), Flare scans the following standard XDG directories:
 - `/usr/share/applications`
