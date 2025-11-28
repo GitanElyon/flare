@@ -21,6 +21,7 @@ pub struct App {
     pub should_quit: bool,
     pub config: AppConfig,
     pub status_message: Option<String>,
+    pub launch_args: Option<Vec<String>>,
 }
 
 impl App {
@@ -34,20 +35,53 @@ impl App {
             should_quit: false,
             config,
             status_message,
+            launch_args: None,
         }
     }
 
     pub fn update_filter(&mut self) {
+        self.launch_args = None;
+
         if self.search_query.is_empty() {
             self.filtered_entries = self.entries.clone();
         } else {
             let query = self.search_query.to_lowercase();
-            self.filtered_entries = self
+            let matches: Vec<AppEntry> = self
                 .entries
                 .iter()
                 .filter(|e| fuzzy_match(&query, &e.name.to_lowercase()))
                 .cloned()
                 .collect();
+
+            if !matches.is_empty() {
+                self.filtered_entries = matches;
+            } else {
+                let words: Vec<&str> = self.search_query.split_whitespace().collect();
+                let mut found = false;
+
+                for i in (1..words.len()).rev() {
+                    let sub_query = words[0..i].join(" ");
+                    let sub_query_lower = sub_query.to_lowercase();
+
+                    let sub_matches: Vec<AppEntry> = self
+                        .entries
+                        .iter()
+                        .filter(|e| fuzzy_match(&sub_query_lower, &e.name.to_lowercase()))
+                        .cloned()
+                        .collect();
+
+                    if !sub_matches.is_empty() {
+                        self.filtered_entries = sub_matches;
+                        self.launch_args = Some(words[i..].iter().map(|s| s.to_string()).collect());
+                        found = true;
+                        break;
+                    }
+                }
+
+                if !found {
+                    self.filtered_entries = Vec::new();
+                }
+            }
         }
         if self.filtered_entries.is_empty() {
             self.list_state.select(None);
@@ -76,8 +110,38 @@ impl App {
             if let Some(entry) = self.filtered_entries.get(i) {
                 if let Some((cmd, args)) = entry.exec_args.split_first() {
                     let mut command = Command::new(cmd);
+
+                    let mut final_args = Vec::new();
+
+                    if let Some(launch_args) = &self.launch_args {
+                        let expanded_launch_args: Vec<String> = launch_args
+                            .iter()
+                            .map(|arg| expand_tilde(arg))
+                            .collect();
+
+                        let mut replaced = false;
+                        for arg in args {
+                            if ["%f", "%F", "%u", "%U"].contains(&arg.as_str()) {
+                                final_args.extend(expanded_launch_args.clone());
+                                replaced = true;
+                            } else {
+                                final_args.push(arg.clone());
+                            }
+                        }
+
+                        if !replaced {
+                            final_args.extend(expanded_launch_args);
+                        }
+                    } else {
+                        for arg in args {
+                            if !["%f", "%F", "%u", "%U"].contains(&arg.as_str()) {
+                                final_args.push(arg.clone());
+                            }
+                        }
+                    }
+
                     command
-                        .args(args)
+                        .args(final_args)
                         .stdin(Stdio::null())
                         .stdout(Stdio::null())
                         .stderr(Stdio::null());
@@ -149,4 +213,13 @@ fn fuzzy_match(query: &str, target: &str) -> bool {
         }
     }
     false
+}
+
+fn expand_tilde(path: &str) -> String {
+    if let Some(stripped) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return format!("{}/{}", home.to_string_lossy(), stripped);
+        }
+    }
+    path.to_string()
 }
