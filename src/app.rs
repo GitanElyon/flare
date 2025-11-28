@@ -45,7 +45,7 @@ impl App {
             self.filtered_entries = self
                 .entries
                 .iter()
-                .filter(|e| e.name.to_lowercase().contains(&query))
+                .filter(|e| fuzzy_match(&query, &e.name.to_lowercase()))
                 .cloned()
                 .collect();
         }
@@ -128,4 +128,25 @@ fn scan_desktop_files() -> Vec<AppEntry> {
     entries.sort_by(|a, b| a.name.cmp(&b.name));
     entries.dedup_by(|a, b| a.name == b.name);
     entries
+}
+
+fn fuzzy_match(query: &str, target: &str) -> bool {
+    let mut query_chars = query.chars();
+    let mut matcher = query_chars.next();
+
+    if matcher.is_none() {
+        return true;
+    }
+
+    for t in target.chars() {
+        if let Some(q) = matcher {
+            if t == q {
+                matcher = query_chars.next();
+                if matcher.is_none() {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
