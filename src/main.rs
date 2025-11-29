@@ -44,6 +44,7 @@ fn main() -> Result<()> {
                         app.search_query.push(c);
                         app.update_filter();
                     }
+                    KeyCode::Tab => app.auto_complete(),
                     _ => {}
                 }
             }

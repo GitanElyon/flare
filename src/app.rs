@@ -136,6 +136,27 @@ impl App {
         self.list_state.select(Some(i));
     }
 
+    pub fn auto_complete(&mut self) {
+        if self.mode == AppMode::FileSelection {
+            if let Some(i) = self.list_state.selected() {
+                if let Some(selected_file) = self.filtered_files.get(i) {
+                    let mut new_path = selected_file.clone();
+                    
+                    let expanded_path = expand_tilde(&new_path);
+                    if Path::new(&expanded_path).is_dir() {
+                        new_path.push('/');
+                    }
+
+                    if let Some(last_space_idx) = self.search_query.rfind(' ') {
+                        let (prefix, _) = self.search_query.split_at(last_space_idx + 1);
+                        self.search_query = format!("{}{}", prefix, new_path);
+                        self.update_filter();
+                    }
+                }
+            }
+        }
+    }
+
     pub fn launch_selected(&mut self) {
         if let Some(i) = self.list_state.selected() {
             let app_entry = if self.mode == AppMode::FileSelection {
@@ -263,6 +284,11 @@ fn fuzzy_match(query: &str, target: &str) -> bool {
 }
 
 fn expand_tilde(path: &str) -> String {
+    if path == "~" {
+        if let Some(home) = dirs::home_dir() {
+            return home.to_string_lossy().to_string();
+        }
+    }
     if let Some(stripped) = path.strip_prefix("~/") {
         if let Some(home) = dirs::home_dir() {
             return format!("{}/{}", home.to_string_lossy(), stripped);
@@ -296,7 +322,16 @@ fn list_files(query_path: &str) -> Vec<String> {
                 continue;
             }
             if fuzzy_match(file_prefix, name) {
-                files.push(path.to_string_lossy().to_string());
+                let mut path_str = path.to_string_lossy().to_string();
+                if query_path.starts_with('~') {
+                    if let Some(home) = dirs::home_dir() {
+                        let home_str = home.to_string_lossy();
+                        if path_str.starts_with(home_str.as_ref()) {
+                            path_str = format!("~{}", &path_str[home_str.len()..]);
+                        }
+                    }
+                }
+                files.push(path_str);
             }
         }
     }
