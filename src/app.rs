@@ -4,7 +4,7 @@ use ratatui::widgets::ListState;
 use std::{
     fs,
     io,
-    os::unix::process::CommandExt,
+    os::unix::{fs::PermissionsExt, process::CommandExt},
     process::{Command, Stdio},
     path::Path,
 };
@@ -56,7 +56,13 @@ impl App {
         self.mode = AppMode::AppSelection;
         self.filtered_files.clear();
 
-        if self.search_query.is_empty() {
+        if self.config.features.enable_file_explorer
+            && (self.search_query.starts_with('~') || self.search_query.starts_with('/'))
+        {
+            self.mode = AppMode::FileSelection;
+            self.filtered_files = list_files(&self.search_query, self.config.features.dirs_first);
+            self.filtered_entries.clear();
+        } else if self.search_query.is_empty() {
             self.filtered_entries = self.entries.clone();
         } else {
             let query = self.search_query.to_lowercase();
@@ -86,17 +92,21 @@ impl App {
 
                     if !sub_matches.is_empty() {
                         self.filtered_entries = sub_matches;
-                        let args: Vec<String> = words[i..].iter().map(|s| s.to_string()).collect();
-                        if let Some(last_arg) = args.last() {
-                            if !last_arg.starts_with('-') {
-                                let files = list_files(last_arg);
-                                if !files.is_empty() {
-                                    self.filtered_files = files;
-                                    self.mode = AppMode::FileSelection;
+                        
+                        if self.config.features.enable_launch_args {
+                            let args: Vec<String> = words[i..].iter().map(|s| s.to_string()).collect();
+                            if let Some(last_arg) = args.last() {
+                                if self.config.features.enable_file_explorer && !last_arg.starts_with('-') {
+                                    let files = list_files(last_arg, self.config.features.dirs_first);
+                                    if !files.is_empty() {
+                                        self.filtered_files = files;
+                                        self.mode = AppMode::FileSelection;
+                                    }
                                 }
                             }
+                            self.launch_args = Some(args);
                         }
-                        self.launch_args = Some(args);
+                        
                         found = true;
                         break;
                     }
@@ -142,6 +152,9 @@ impl App {
     }
 
     pub fn auto_complete(&mut self) {
+        if !self.config.features.enable_auto_complete {
+            return;
+        }
         if self.mode == AppMode::FileSelection {
             if let Some(i) = self.list_state.selected() {
                 if let Some(selected_file) = self.filtered_files.get(i) {
@@ -155,8 +168,10 @@ impl App {
                     if let Some(last_space_idx) = self.search_query.rfind(' ') {
                         let (prefix, _) = self.search_query.split_at(last_space_idx + 1);
                         self.search_query = format!("{}{}", prefix, new_path);
-                        self.update_filter();
+                    } else {
+                        self.search_query = new_path;
                     }
+                    self.update_filter();
                 }
             }
         }
@@ -164,6 +179,13 @@ impl App {
 
     pub fn launch_selected(&mut self) {
         if let Some(i) = self.list_state.selected() {
+            if self.mode == AppMode::FileSelection && self.filtered_entries.is_empty() {
+                if let Some(selected_file) = self.filtered_files.get(i).cloned() {
+                    self.open_file(&selected_file);
+                }
+                return;
+            }
+
             let app_entry = if self.mode == AppMode::FileSelection {
                 self.filtered_entries.first()
             } else {
@@ -176,34 +198,42 @@ impl App {
 
                     let mut final_args = Vec::new();
 
-                    if let Some(launch_args) = &self.launch_args {
-                        let mut current_launch_args = launch_args.clone();
-                        
-                        if self.mode == AppMode::FileSelection {
-                            if let Some(selected_file) = self.filtered_files.get(i) {
-                                if let Some(last) = current_launch_args.last_mut() {
-                                    *last = selected_file.clone();
+                    if self.config.features.enable_launch_args {
+                        if let Some(launch_args) = &self.launch_args {
+                            let mut current_launch_args = launch_args.clone();
+                            
+                            if self.mode == AppMode::FileSelection {
+                                if let Some(selected_file) = self.filtered_files.get(i) {
+                                    if let Some(last) = current_launch_args.last_mut() {
+                                        *last = selected_file.clone();
+                                    }
                                 }
                             }
-                        }
 
-                        let expanded_launch_args: Vec<String> = current_launch_args
-                            .iter()
-                            .map(|arg| expand_tilde(arg))
-                            .collect();
+                            let expanded_launch_args: Vec<String> = current_launch_args
+                                .iter()
+                                .map(|arg| expand_tilde(arg))
+                                .collect();
 
-                        let mut replaced = false;
-                        for arg in args {
-                            if ["%f", "%F", "%u", "%U"].contains(&arg.as_str()) {
-                                final_args.extend(expanded_launch_args.clone());
-                                replaced = true;
-                            } else {
-                                final_args.push(arg.clone());
+                            let mut replaced = false;
+                            for arg in args {
+                                if ["%f", "%F", "%u", "%U"].contains(&arg.as_str()) {
+                                    final_args.extend(expanded_launch_args.clone());
+                                    replaced = true;
+                                } else {
+                                    final_args.push(arg.clone());
+                                }
                             }
-                        }
 
-                        if !replaced {
-                            final_args.extend(expanded_launch_args);
+                            if !replaced {
+                                final_args.extend(expanded_launch_args);
+                            }
+                        } else {
+                            for arg in args {
+                                if !["%f", "%F", "%u", "%U"].contains(&arg.as_str()) {
+                                    final_args.push(arg.clone());
+                                }
+                            }
                         }
                     } else {
                         for arg in args {
@@ -238,6 +268,48 @@ impl App {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    fn open_file(&mut self, path_str: &str) {
+        let expanded = expand_tilde(path_str);
+        let path = Path::new(&expanded);
+
+        let is_executable = if let Ok(metadata) = fs::metadata(path) {
+            metadata.permissions().mode() & 0o111 != 0
+        } else {
+            false
+        };
+
+        let mut command = if is_executable && !path.is_dir() {
+            Command::new(path)
+        } else {
+            let mut cmd = Command::new("xdg-open");
+            cmd.arg(path);
+            cmd
+        };
+
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+
+        unsafe {
+            command.pre_exec(|| {
+                libc::setsid();
+                libc::signal(libc::SIGHUP, libc::SIG_IGN);
+                Ok(()) as io::Result<()>
+            });
+        }
+
+        match command.spawn() {
+            Ok(_) => {
+                self.should_quit = true;
+                self.status_message = None;
+            }
+            Err(err) => {
+                self.status_message = Some(format!("Failed to open {}: {}", path_str, err));
             }
         }
     }
@@ -302,7 +374,7 @@ fn expand_tilde(path: &str) -> String {
     path.to_string()
 }
 
-fn list_files(query_path: &str) -> Vec<String> {
+fn list_files(query_path: &str, dirs_first: bool) -> Vec<String> {
     let expanded = expand_tilde(query_path);
     let path = Path::new(&expanded);
     
@@ -318,11 +390,13 @@ fn list_files(query_path: &str) -> Vec<String> {
         dir
     };
 
-    let mut files = Vec::new();
+    let mut entries_vec: Vec<(String, bool)> = Vec::new();
     if let Ok(entries) = fs::read_dir(search_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+            let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+
             if name.starts_with('.') && !file_prefix.starts_with('.') {
                 continue;
             }
@@ -336,10 +410,22 @@ fn list_files(query_path: &str) -> Vec<String> {
                         }
                     }
                 }
-                files.push(path_str);
+                entries_vec.push((path_str, is_dir));
             }
         }
     }
-    files.sort();
-    files
+
+    if dirs_first {
+        entries_vec.sort_by(|(a_path, a_is_dir), (b_path, b_is_dir)| {
+            if *a_is_dir != *b_is_dir {
+                b_is_dir.cmp(a_is_dir)
+            } else {
+                a_path.cmp(b_path)
+            }
+        });
+    } else {
+        entries_vec.sort_by(|(a, _), (b, _)| a.cmp(b));
+    }
+
+    entries_vec.into_iter().map(|(p, _)| p).collect()
 }

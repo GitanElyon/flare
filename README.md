@@ -7,6 +7,8 @@ Flare is a customizable, lightweight, terminal-based application launcher for Li
 - **Fast scanning**: Automatically detects applications from standard `.desktop` file locations (`/usr/share/applications`, `~/.local/share/applications`).
 - **TUI interface**: Clean, terminal-based user interface.
 - **Instant filtering**: Real-time search filtering as you type.
+- **File Explorer**: Browse and select files directly. Start with `~/` or `/` to search files exclusively, or type a path after an app name to pass it as an argument.
+- **Launch Arguments**: Pass arguments to applications (e.g., `nvim ~/file.txt`).
 - **Keyboard-centric**: Designed for efficiency with intuitive keybindings.
 - **Highly customizable**: Extensive configuration options for appearance and behavior.
 
@@ -47,6 +49,10 @@ You can run `flare` from your terminal, or set it up as a hotkey application lau
 
 Flare can easily be used as an application launcher in place of `rofi` or `wofi`. To set it up, bind your desired hotkey to open a floating terminal running the `flare` command.
 
+You can also use Flare to browse files or pass arguments to applications:
+- **Launch with arguments**: Type the app name followed by arguments (e.g., `neovim ~/Documents/note.txt`).
+- **File Explorer**: Type a path starting with `~/` or `/` (e.g., `~/Projects/` or `/etc/`) to browse directories exclusively. Select a file and press Enter to open it with the default application (via `xdg-open`) or execute it if it's a binary.
+
 Example for Hyprland config:
 
 ```conf
@@ -59,6 +65,7 @@ bind = $mod, space, exec, [float] $terminal -e flare
 | --- | --- |
 | **Type** | Filter the application list |
 | **Up / Down** | Navigate the list |
+| **Tab** | Auto-complete file paths |
 | **Enter** | Launch selected application |
 | **Esc** | Quit Flare |
 | **Backspace** | Delete character from search |
