@@ -19,6 +19,12 @@ rounded-corners = true
 show-borders = true
 highlight-symbol = "» "
 
+[features]
+enable-file-explorer = true
+enable-launch-args = true
+enable-auto-complete = true
+dirs-first = true
+
 [window]
 visible = false          # alias: visable = true
 bg = "#0f0f17ff"        # rrggbbAA (alpha optional)
@@ -84,6 +90,15 @@ The `[general]` block controls defaults for the rest of the UI:
 - `rounded-corners`: switches every visible border between plain and rounded corners. Individual sections can opt out via `rounded = false`.
 - `show-borders`: quick way to remove all borders. Override per section with `borders = true/false` when you want one box framed but another bare.
 - `highlight-symbol`: string prepended to the focused entry. Multi-character strings work fine—emoji too, if your font supports them.
+
+### Features Section
+
+The `[features]` block allows you to toggle specific functionalities:
+
+- `enable-file-explorer`: Enables file browsing. When typing a path starting with `~/` or `/`, Flare switches to file-only mode. Also enables path completion for launch arguments.
+- `enable-launch-args`: Enables passing arguments to applications (e.g., `nvim file.txt`).
+- `enable-auto-complete`: Enables tab auto-completion for file paths.
+- `dirs-first`: When listing files, show directories before files. Defaults to `true`.
 
 ### Color Syntax
 

@@ -15,6 +15,7 @@ pub struct ConfigLoadResult {
 #[serde(default, rename_all = "kebab-case")]
 pub struct AppConfig {
     pub general: GeneralConfig,
+    pub features: FeaturesConfig,
     pub window: SectionConfig,
     pub outer_box: SectionConfig,
     pub input: SectionConfig,
@@ -79,6 +80,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             general: GeneralConfig::default(),
+            features: FeaturesConfig::default(),
             window: SectionConfig {
                 bg: Some(String::from("#000000")),
                 ..SectionConfig::default()
@@ -130,6 +132,26 @@ impl Default for GeneralConfig {
             rounded_corners: true,
             show_borders: true,
             highlight_symbol: Some(String::from(">> ")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct FeaturesConfig {
+    pub enable_file_explorer: bool,
+    pub enable_launch_args: bool,
+    pub enable_auto_complete: bool,
+    pub dirs_first: bool,
+}
+
+impl Default for FeaturesConfig {
+    fn default() -> Self {
+        Self {
+            enable_file_explorer: true,
+            enable_launch_args: true,
+            enable_auto_complete: true,
+            dirs_first: true,
         }
     }
 }
