@@ -36,7 +36,7 @@ pub struct App {
 
 impl App {
     pub fn new(config: AppConfig, status_message: Option<String>) -> Self {
-        let entries = scan_desktop_files();
+        let entries = scan_desktop_files(config.features.show_duplicates);
         Self {
             search_query: String::new(),
             filtered_entries: entries.clone(),
@@ -315,7 +315,7 @@ impl App {
     }
 }
 
-fn scan_desktop_files() -> Vec<AppEntry> {
+fn scan_desktop_files(show_duplicates: bool) -> Vec<AppEntry> {
     let locales = get_languages_from_env();
     let locale_slice = locales.as_slice();
 
@@ -334,8 +334,15 @@ fn scan_desktop_files() -> Vec<AppEntry> {
         })
         .collect();
 
-    entries.sort_by(|a, b| a.name.cmp(&b.name));
-    entries.dedup_by(|a, b| a.name == b.name);
+    entries.sort_by(|a, b| {
+        a.name.to_lowercase().cmp(&b.name.to_lowercase())
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    
+    if !show_duplicates {
+        entries.dedup_by(|a, b| a.name.to_lowercase() == b.name.to_lowercase());
+    }
+    
     entries
 }
 

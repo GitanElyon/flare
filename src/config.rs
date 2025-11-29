@@ -143,6 +143,7 @@ pub struct FeaturesConfig {
     pub enable_launch_args: bool,
     pub enable_auto_complete: bool,
     pub dirs_first: bool,
+    pub show_duplicates: bool,
 }
 
 impl Default for FeaturesConfig {
@@ -152,6 +153,7 @@ impl Default for FeaturesConfig {
             enable_launch_args: true,
             enable_auto_complete: true,
             dirs_first: true,
+            show_duplicates: false,
         }
     }
 }
