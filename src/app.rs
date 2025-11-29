@@ -88,8 +88,13 @@ impl App {
                         self.filtered_entries = sub_matches;
                         let args: Vec<String> = words[i..].iter().map(|s| s.to_string()).collect();
                         if let Some(last_arg) = args.last() {
-                            self.filtered_files = list_files(last_arg);
-                            self.mode = AppMode::FileSelection;
+                            if !last_arg.starts_with('-') {
+                                let files = list_files(last_arg);
+                                if !files.is_empty() {
+                                    self.filtered_files = files;
+                                    self.mode = AppMode::FileSelection;
+                                }
+                            }
                         }
                         self.launch_args = Some(args);
                         found = true;
