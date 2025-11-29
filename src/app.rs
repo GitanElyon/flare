@@ -2,10 +2,18 @@ use crate::config::AppConfig;
 use freedesktop_desktop_entry::{Iter, default_paths, get_languages_from_env};
 use ratatui::widgets::ListState;
 use std::{
+    fs,
     io,
     os::unix::process::CommandExt,
     process::{Command, Stdio},
+    path::Path,
 };
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AppMode {
+    AppSelection,
+    FileSelection,
+}
 
 #[derive(Debug, Clone)]
 pub struct AppEntry {
@@ -22,6 +30,8 @@ pub struct App {
     pub config: AppConfig,
     pub status_message: Option<String>,
     pub launch_args: Option<Vec<String>>,
+    pub mode: AppMode,
+    pub filtered_files: Vec<String>,
 }
 
 impl App {
@@ -36,11 +46,15 @@ impl App {
             config,
             status_message,
             launch_args: None,
+            mode: AppMode::AppSelection,
+            filtered_files: Vec::new(),
         }
     }
 
     pub fn update_filter(&mut self) {
         self.launch_args = None;
+        self.mode = AppMode::AppSelection;
+        self.filtered_files.clear();
 
         if self.search_query.is_empty() {
             self.filtered_entries = self.entries.clone();
@@ -72,7 +86,12 @@ impl App {
 
                     if !sub_matches.is_empty() {
                         self.filtered_entries = sub_matches;
-                        self.launch_args = Some(words[i..].iter().map(|s| s.to_string()).collect());
+                        let args: Vec<String> = words[i..].iter().map(|s| s.to_string()).collect();
+                        if let Some(last_arg) = args.last() {
+                            self.filtered_files = list_files(last_arg);
+                            self.mode = AppMode::FileSelection;
+                        }
+                        self.launch_args = Some(args);
                         found = true;
                         break;
                     }
@@ -83,7 +102,14 @@ impl App {
                 }
             }
         }
-        if self.filtered_entries.is_empty() {
+        
+        let count = if self.mode == AppMode::AppSelection {
+            self.filtered_entries.len()
+        } else {
+            self.filtered_files.len()
+        };
+
+        if count == 0 {
             self.list_state.select(None);
         } else {
             self.list_state.select(Some(0));
@@ -91,13 +117,18 @@ impl App {
     }
 
     pub fn move_selection(&mut self, delta: i32) {
-        if self.filtered_entries.is_empty() {
+        let len = if self.mode == AppMode::AppSelection {
+            self.filtered_entries.len()
+        } else {
+            self.filtered_files.len()
+        };
+
+        if len == 0 {
             return;
         }
         let i = match self.list_state.selected() {
             Some(i) => {
-                let len = self.filtered_entries.len() as i32;
-                let new_i = (i as i32 + delta).rem_euclid(len);
+                let new_i = (i as i32 + delta).rem_euclid(len as i32);
                 new_i as usize
             }
             None => 0,
@@ -107,14 +138,30 @@ impl App {
 
     pub fn launch_selected(&mut self) {
         if let Some(i) = self.list_state.selected() {
-            if let Some(entry) = self.filtered_entries.get(i) {
+            let app_entry = if self.mode == AppMode::FileSelection {
+                self.filtered_entries.first()
+            } else {
+                self.filtered_entries.get(i)
+            };
+
+            if let Some(entry) = app_entry {
                 if let Some((cmd, args)) = entry.exec_args.split_first() {
                     let mut command = Command::new(cmd);
 
                     let mut final_args = Vec::new();
 
                     if let Some(launch_args) = &self.launch_args {
-                        let expanded_launch_args: Vec<String> = launch_args
+                        let mut current_launch_args = launch_args.clone();
+                        
+                        if self.mode == AppMode::FileSelection {
+                            if let Some(selected_file) = self.filtered_files.get(i) {
+                                if let Some(last) = current_launch_args.last_mut() {
+                                    *last = selected_file.clone();
+                                }
+                            }
+                        }
+
+                        let expanded_launch_args: Vec<String> = current_launch_args
                             .iter()
                             .map(|arg| expand_tilde(arg))
                             .collect();
@@ -222,4 +269,37 @@ fn expand_tilde(path: &str) -> String {
         }
     }
     path.to_string()
+}
+
+fn list_files(query_path: &str) -> Vec<String> {
+    let expanded = expand_tilde(query_path);
+    let path = Path::new(&expanded);
+    
+    let (dir, file_prefix) = if query_path.ends_with('/') {
+        (path, "")
+    } else {
+        (path.parent().unwrap_or(Path::new("")), path.file_name().and_then(|s| s.to_str()).unwrap_or(""))
+    };
+
+    let search_dir = if dir.as_os_str().is_empty() {
+        if query_path.starts_with('/') { Path::new("/") } else { Path::new(".") }
+    } else {
+        dir
+    };
+
+    let mut files = Vec::new();
+    if let Ok(entries) = fs::read_dir(search_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+            if name.starts_with('.') && !file_prefix.starts_with('.') {
+                continue;
+            }
+            if fuzzy_match(file_prefix, name) {
+                files.push(path.to_string_lossy().to_string());
+            }
+        }
+    }
+    files.sort();
+    files
 }
