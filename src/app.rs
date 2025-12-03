@@ -1,4 +1,5 @@
 use crate::config::AppConfig;
+use crate::history::History;
 use freedesktop_desktop_entry::{Iter, default_paths, get_languages_from_env};
 use ratatui::widgets::ListState;
 use std::{
@@ -32,12 +33,15 @@ pub struct App {
     pub launch_args: Option<Vec<String>>,
     pub mode: AppMode,
     pub filtered_files: Vec<String>,
+    pub history: History,
 }
 
 impl App {
     pub fn new(config: AppConfig, status_message: Option<String>) -> Self {
         let entries = scan_desktop_files(config.features.show_duplicates);
-        Self {
+        let history = History::load();
+
+        let mut app = Self {
             search_query: String::new(),
             filtered_entries: entries.clone(),
             entries,
@@ -48,8 +52,50 @@ impl App {
             launch_args: None,
             mode: AppMode::AppSelection,
             filtered_files: Vec::new(),
+            history,
+        };
+
+        app.sort_entries();
+        app.filtered_entries = app.entries.clone();
+        app
+    }
+
+    pub fn sort_entries(&mut self) {
+        let history = &self.history;
+        let recent_first = self.config.features.recent_first;
+
+        self.entries.sort_by(|a, b| {
+            let fav_a = history.is_favorite(&a.name);
+            let fav_b = history.is_favorite(&b.name);
+            if fav_a != fav_b {
+                return fav_b.cmp(&fav_a);
+            }
+
+            if recent_first {
+                let count_a = history.get_count(&a.name);
+                let count_b = history.get_count(&b.name);
+                if count_a != count_b {
+                    return count_b.cmp(&count_a);
+                }
+            }
+
+            a.name.to_lowercase().cmp(&b.name.to_lowercase())
+                .then_with(|| a.name.cmp(&b.name))
+        });
+    }
+
+    pub fn toggle_favorite(&mut self) {
+        if self.mode == AppMode::AppSelection {
+            if let Some(i) = self.list_state.selected() {
+                if let Some(entry) = self.filtered_entries.get(i).cloned() {
+                    self.history.toggle_favorite(&entry.name);
+                    self.sort_entries();
+                    self.update_filter();
+                }
+            }
         }
     }
+
 
     pub fn update_filter(&mut self) {
         self.launch_args = None;
@@ -151,6 +197,30 @@ impl App {
         self.list_state.select(Some(i));
     }
 
+    pub fn select_first(&mut self) {
+        let len = if self.mode == AppMode::AppSelection {
+            self.filtered_entries.len()
+        } else {
+            self.filtered_files.len()
+        };
+
+        if len > 0 {
+            self.list_state.select(Some(0));
+        }
+    }
+
+    pub fn select_last(&mut self) {
+        let len = if self.mode == AppMode::AppSelection {
+            self.filtered_entries.len()
+        } else {
+            self.filtered_files.len()
+        };
+
+        if len > 0 {
+            self.list_state.select(Some(len - 1));
+        }
+    }
+
     pub fn auto_complete(&mut self) {
         if !self.config.features.enable_auto_complete {
             return;
@@ -193,6 +263,7 @@ impl App {
             };
 
             if let Some(entry) = app_entry {
+                self.history.increment(&entry.name);
                 if let Some((cmd, args)) = entry.exec_args.split_first() {
                     let mut command = Command::new(cmd);
 

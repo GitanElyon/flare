@@ -18,6 +18,8 @@ You can also copy configs between machines—Flare only cares that the TOML stru
 rounded-corners = true
 show-borders = true
 highlight-symbol = "» "
+favorite-symbol = "★ "
+favorite-key = "alt+f"
 
 [features]
 enable-file-explorer = true
@@ -25,6 +27,7 @@ enable-launch-args = true
 enable-auto-complete = true
 dirs-first = true
 show-duplicates = false
+recent-first = true
 
 [window]
 visible = false          # alias: visable = true
@@ -91,6 +94,8 @@ The `[general]` block controls defaults for the rest of the UI:
 - `rounded-corners`: switches every visible border between plain and rounded corners. Individual sections can opt out via `rounded = false`.
 - `show-borders`: quick way to remove all borders. Override per section with `borders = true/false` when you want one box framed but another bare.
 - `highlight-symbol`: string prepended to the focused entry. Multi-character strings work fine—emoji too, if your font supports them.
+- `favorite-symbol`: string displayed next to favorite applications. Defaults to "★ ".
+- `favorite-key`: keybinding to toggle favorite status. Supports modifiers (ctrl, alt, shift) and keys (a-z, f1-f12, enter, etc.). Defaults to "alt+f".
 
 ### Features Section
 
@@ -101,6 +106,7 @@ The `[features]` block allows you to toggle specific functionalities:
 - `enable-auto-complete`: Enables tab auto-completion for file paths.
 - `dirs-first`: When listing files, show directories before files. Defaults to `true`.
 - `show-duplicates`: Shows duplicate entries when the same application appears in multiple locations (e.g., both `/usr/share/applications` and `~/.local/share/applications`). Set to `true` to show all instances, or `false` to show only the first occurrence. Defaults to `false`.
+- `recent-first`: Sorts applications by usage frequency. Defaults to `true`.
 
 ### Color Syntax
 
