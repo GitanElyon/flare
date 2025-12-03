@@ -1,4 +1,5 @@
 use crate::config::AppConfig;
+use crate::history::History;
 use freedesktop_desktop_entry::{Iter, default_paths, get_languages_from_env};
 use ratatui::widgets::ListState;
 use std::{
@@ -32,11 +33,25 @@ pub struct App {
     pub launch_args: Option<Vec<String>>,
     pub mode: AppMode,
     pub filtered_files: Vec<String>,
+    pub history: History,
 }
 
 impl App {
     pub fn new(config: AppConfig, status_message: Option<String>) -> Self {
-        let entries = scan_desktop_files(config.features.show_duplicates);
+        let mut entries = scan_desktop_files(config.features.show_duplicates);
+        let history = History::load();
+
+        if config.features.recent_first {
+            entries.sort_by(|a, b| {
+                let count_a = history.get_count(&a.name);
+                let count_b = history.get_count(&b.name);
+                count_b.cmp(&count_a).then_with(|| {
+                    a.name.to_lowercase().cmp(&b.name.to_lowercase())
+                        .then_with(|| a.name.cmp(&b.name))
+                })
+            });
+        }
+
         Self {
             search_query: String::new(),
             filtered_entries: entries.clone(),
@@ -48,6 +63,7 @@ impl App {
             launch_args: None,
             mode: AppMode::AppSelection,
             filtered_files: Vec::new(),
+            history,
         }
     }
 
@@ -193,6 +209,7 @@ impl App {
             };
 
             if let Some(entry) = app_entry {
+                self.history.increment(&entry.name);
                 if let Some((cmd, args)) = entry.exec_args.split_first() {
                     let mut command = Command::new(cmd);
 

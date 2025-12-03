@@ -144,6 +144,7 @@ pub struct FeaturesConfig {
     pub enable_auto_complete: bool,
     pub dirs_first: bool,
     pub show_duplicates: bool,
+    pub recent_first: bool,
 }
 
 impl Default for FeaturesConfig {
@@ -154,6 +155,7 @@ impl Default for FeaturesConfig {
             enable_auto_complete: true,
             dirs_first: true,
             show_duplicates: false,
+            recent_first: true,
         }
     }
 }

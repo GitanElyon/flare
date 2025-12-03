@@ -1,5 +1,6 @@
 mod app;
 mod config;
+mod history;
 mod ui;
 
 use crate::{app::App, config::AppConfig, ui::draw};

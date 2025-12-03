@@ -25,6 +25,7 @@ enable-launch-args = true
 enable-auto-complete = true
 dirs-first = true
 show-duplicates = false
+recent-first = true
 
 [window]
 visible = false          # alias: visable = true
@@ -101,6 +102,7 @@ The `[features]` block allows you to toggle specific functionalities:
 - `enable-auto-complete`: Enables tab auto-completion for file paths.
 - `dirs-first`: When listing files, show directories before files. Defaults to `true`.
 - `show-duplicates`: Shows duplicate entries when the same application appears in multiple locations (e.g., both `/usr/share/applications` and `~/.local/share/applications`). Set to `true` to show all instances, or `false` to show only the first occurrence. Defaults to `false`.
+- `recent-first`: Sorts applications by usage frequency. Defaults to `true`.
 
 ### Color Syntax
 

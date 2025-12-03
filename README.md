@@ -5,6 +5,7 @@ Flare is a customizable, lightweight, terminal-based application launcher for Li
 # Features
 
 - **Fast scanning**: Automatically detects applications from standard `.desktop` file locations (`/usr/share/applications`, `~/.local/share/applications`).
+- **Smart ordering**: Sorts applications by usage frequency, keeping your most used apps at the top.
 - **TUI interface**: Clean, terminal-based user interface.
 - **Instant filtering**: Real-time search filtering as you type.
 - **File Explorer**: Browse and select files directly. Start with `~/` or `/` to search files exclusively, or type a path after an app name to pass it as an argument.
