@@ -37,6 +37,8 @@ fn main() -> Result<()> {
                     KeyCode::Enter => app.launch_selected(),
                     KeyCode::Up => app.move_selection(-1),
                     KeyCode::Down => app.move_selection(1),
+                    KeyCode::Left => app.select_first(),
+                    KeyCode::Right => app.select_last(),
                     KeyCode::Backspace => {
                         app.search_query.pop();
                         app.update_filter();

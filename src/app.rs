@@ -167,6 +167,30 @@ impl App {
         self.list_state.select(Some(i));
     }
 
+    pub fn select_first(&mut self) {
+        let len = if self.mode == AppMode::AppSelection {
+            self.filtered_entries.len()
+        } else {
+            self.filtered_files.len()
+        };
+
+        if len > 0 {
+            self.list_state.select(Some(0));
+        }
+    }
+
+    pub fn select_last(&mut self) {
+        let len = if self.mode == AppMode::AppSelection {
+            self.filtered_entries.len()
+        } else {
+            self.filtered_files.len()
+        };
+
+        if len > 0 {
+            self.list_state.select(Some(len - 1));
+        }
+    }
+
     pub fn auto_complete(&mut self) {
         if !self.config.features.enable_auto_complete {
             return;

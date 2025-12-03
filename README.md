@@ -66,6 +66,7 @@ bind = $mod, space, exec, [float] $terminal -e flare
 | --- | --- |
 | **Type** | Filter the application list |
 | **Up / Down** | Navigate the list |
+| **Left / Right** | Jump to top / bottom of list |
 | **Tab** | Auto-complete file paths |
 | **Enter** | Launch selected application |
 | **Esc** | Quit Flare |
