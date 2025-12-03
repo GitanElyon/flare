@@ -118,8 +118,14 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     return ListItem::new(Span::raw(""));
                 }
 
+                let is_fav = app.history.is_favorite(&entry.name);
+                let fav_symbol = config.general.favorite_symbol.as_deref().unwrap_or("★ ");
+                let empty_prefix = " ".repeat(fav_symbol.chars().count());
+                let prefix = if is_fav { fav_symbol } else { &empty_prefix };
+                let name_with_icon = format!("{}{}", prefix, entry.name);
+
                 let display_text =
-                    aligned_text(&entry.name, text_area_width, config.text.alignment());
+                    aligned_text(&name_with_icon, text_area_width, config.text.alignment());
                 ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style)
             })
             .collect()

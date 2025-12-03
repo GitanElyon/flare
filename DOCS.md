@@ -18,6 +18,8 @@ You can also copy configs between machines—Flare only cares that the TOML stru
 rounded-corners = true
 show-borders = true
 highlight-symbol = "» "
+favorite-symbol = "★ "
+favorite-key = "alt+f"
 
 [features]
 enable-file-explorer = true
@@ -92,6 +94,8 @@ The `[general]` block controls defaults for the rest of the UI:
 - `rounded-corners`: switches every visible border between plain and rounded corners. Individual sections can opt out via `rounded = false`.
 - `show-borders`: quick way to remove all borders. Override per section with `borders = true/false` when you want one box framed but another bare.
 - `highlight-symbol`: string prepended to the focused entry. Multi-character strings work fine—emoji too, if your font supports them.
+- `favorite-symbol`: string displayed next to favorite applications. Defaults to "★ ".
+- `favorite-key`: keybinding to toggle favorite status. Supports modifiers (ctrl, alt, shift) and keys (a-z, f1-f12, enter, etc.). Defaults to "alt+f".
 
 ### Features Section
 

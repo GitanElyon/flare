@@ -38,21 +38,10 @@ pub struct App {
 
 impl App {
     pub fn new(config: AppConfig, status_message: Option<String>) -> Self {
-        let mut entries = scan_desktop_files(config.features.show_duplicates);
+        let entries = scan_desktop_files(config.features.show_duplicates);
         let history = History::load();
 
-        if config.features.recent_first {
-            entries.sort_by(|a, b| {
-                let count_a = history.get_count(&a.name);
-                let count_b = history.get_count(&b.name);
-                count_b.cmp(&count_a).then_with(|| {
-                    a.name.to_lowercase().cmp(&b.name.to_lowercase())
-                        .then_with(|| a.name.cmp(&b.name))
-                })
-            });
-        }
-
-        Self {
+        let mut app = Self {
             search_query: String::new(),
             filtered_entries: entries.clone(),
             entries,
@@ -64,8 +53,49 @@ impl App {
             mode: AppMode::AppSelection,
             filtered_files: Vec::new(),
             history,
+        };
+
+        app.sort_entries();
+        app.filtered_entries = app.entries.clone();
+        app
+    }
+
+    pub fn sort_entries(&mut self) {
+        let history = &self.history;
+        let recent_first = self.config.features.recent_first;
+
+        self.entries.sort_by(|a, b| {
+            let fav_a = history.is_favorite(&a.name);
+            let fav_b = history.is_favorite(&b.name);
+            if fav_a != fav_b {
+                return fav_b.cmp(&fav_a);
+            }
+
+            if recent_first {
+                let count_a = history.get_count(&a.name);
+                let count_b = history.get_count(&b.name);
+                if count_a != count_b {
+                    return count_b.cmp(&count_a);
+                }
+            }
+
+            a.name.to_lowercase().cmp(&b.name.to_lowercase())
+                .then_with(|| a.name.cmp(&b.name))
+        });
+    }
+
+    pub fn toggle_favorite(&mut self) {
+        if self.mode == AppMode::AppSelection {
+            if let Some(i) = self.list_state.selected() {
+                if let Some(entry) = self.filtered_entries.get(i).cloned() {
+                    self.history.toggle_favorite(&entry.name);
+                    self.sort_entries();
+                    self.update_filter();
+                }
+            }
         }
     }
+
 
     pub fn update_filter(&mut self) {
         self.launch_args = None;

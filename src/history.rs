@@ -6,6 +6,8 @@ use std::fs;
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct History {
     pub usage: HashMap<String, u64>,
+    #[serde(default)]
+    pub favorites: Vec<String>,
 }
 
 impl History {
@@ -43,5 +45,18 @@ impl History {
 
     pub fn get_count(&self, app_name: &str) -> u64 {
         *self.usage.get(app_name).unwrap_or(&0)
+    }
+
+    pub fn toggle_favorite(&mut self, app_name: &str) {
+        if let Some(pos) = self.favorites.iter().position(|x| x == app_name) {
+            self.favorites.remove(pos);
+        } else {
+            self.favorites.push(app_name.to_string());
+        }
+        self.save();
+    }
+
+    pub fn is_favorite(&self, app_name: &str) -> bool {
+        self.favorites.contains(&app_name.to_string())
     }
 }

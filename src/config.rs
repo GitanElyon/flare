@@ -124,6 +124,8 @@ pub struct GeneralConfig {
     pub rounded_corners: bool,
     pub show_borders: bool,
     pub highlight_symbol: Option<String>,
+    pub favorite_symbol: Option<String>,
+    pub favorite_key: Option<String>,
 }
 
 impl Default for GeneralConfig {
@@ -132,6 +134,8 @@ impl Default for GeneralConfig {
             rounded_corners: true,
             show_borders: true,
             highlight_symbol: Some(String::from(">> ")),
+            favorite_symbol: Some(String::from("★ ")),
+            favorite_key: Some(String::from("alt+f")),
         }
     }
 }
