@@ -2,7 +2,7 @@ use crate::{app::{App, AppMode}, config::TextAlignment};
 use ratatui::{
     prelude::*,
     text::Span,
-    widgets::{Clear, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
 };
 
 pub fn draw(f: &mut Frame, app: &mut App) {
@@ -110,58 +110,79 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         Style::default()
     };
 
-    let items: Vec<ListItem> = if app.mode == AppMode::AppSelection {
-        app.filtered_entries
-            .iter()
-            .map(|entry| {
-                if !config.text.is_visible() {
-                    return ListItem::new(Span::raw(""));
-                }
-
-                let is_fav = app.history.is_favorite(&entry.name);
-                let fav_symbol = config.general.favorite_symbol.as_deref().unwrap_or("★ ");
-                let empty_prefix = " ".repeat(fav_symbol.chars().count());
-                let prefix = if is_fav { fav_symbol } else { &empty_prefix };
-                let name_with_icon = format!("{}{}", prefix, entry.name);
-
-                let display_text =
-                    aligned_text(&name_with_icon, text_area_width, config.text.alignment());
-                ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style)
-            })
-            .collect()
-    } else {
-        app.filtered_files
-            .iter()
-            .map(|file| {
-                if !config.text.is_visible() {
-                    return ListItem::new(Span::raw(""));
-                }
-                let display_text = aligned_text(file, text_area_width, config.text.alignment());
-                ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style)
-            })
-            .collect()
-    };
-
-    let highlight_symbol = if entry_selected_visible {
-        config.general.highlight_symbol.as_deref().unwrap_or(">> ")
-    } else {
-        ""
-    };
-
-    let mut list = List::new(items)
-        .highlight_style(highlight_style)
-        .highlight_symbol(highlight_symbol);
-
-    if config.inner_box.is_visible() {
-        let title = if app.mode == AppMode::AppSelection {
-            " Applications "
+    if app.mode == AppMode::SudoPassword {
+        let block = if config.inner_box.is_visible() {
+            config.inner_box.block(general, " Sudo Password ")
         } else {
-            " Files "
+            Block::default().borders(Borders::ALL).title(" Sudo Password ")
         };
-        list = list.block(config.inner_box.block(general, title));
-    }
 
-    f.render_stateful_widget(list, scroll_area, &mut app.list_state);
+        let inner = block.inner(scroll_area);
+        f.render_widget(block, scroll_area);
+
+        let mut items: Vec<ListItem> = Vec::new();
+        for log_line in app.sudo_log.iter() {
+            let display = log_line.clone();
+
+            items.push(ListItem::new(Span::raw(display)));
+        }
+
+        let list = List::new(items);
+        f.render_widget(list, inner);
+    } else {
+        let items: Vec<ListItem> = if app.mode == AppMode::AppSelection {
+            app.filtered_entries
+                .iter()
+                .map(|entry| {
+                    if !config.text.is_visible() {
+                        return ListItem::new(Span::raw(""));
+                    }
+
+                    let is_fav = app.history.is_favorite(&entry.name);
+                    let fav_symbol = config.general.favorite_symbol.as_deref().unwrap_or("★ ");
+                    let empty_prefix = " ".repeat(fav_symbol.chars().count());
+                    let prefix = if is_fav { fav_symbol } else { &empty_prefix };
+                    let name_with_icon = format!("{}{}", prefix, entry.name);
+
+                    let display_text =
+                        aligned_text(&name_with_icon, text_area_width, config.text.alignment());
+                    ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style)
+                })
+                .collect()
+        } else {
+            app.filtered_files
+                .iter()
+                .map(|file| {
+                    if !config.text.is_visible() {
+                        return ListItem::new(Span::raw(""));
+                    }
+                    let display_text = aligned_text(file, text_area_width, config.text.alignment());
+                    ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style)
+                })
+                .collect()
+        };
+
+        let highlight_symbol = if entry_selected_visible {
+            config.general.highlight_symbol.as_deref().unwrap_or(">> ")
+        } else {
+            ""
+        };
+
+        let mut list = List::new(items)
+            .highlight_style(highlight_style)
+            .highlight_symbol(highlight_symbol);
+
+        if config.inner_box.is_visible() {
+            let title = if app.mode == AppMode::AppSelection {
+                " Applications "
+            } else {
+                " Files "
+            };
+            list = list.block(config.inner_box.block(general, title));
+        }
+
+        f.render_stateful_widget(list, scroll_area, &mut app.list_state);
+    }
 }
 
 fn aligned_text(text: &str, width: u16, alignment: TextAlignment) -> String {

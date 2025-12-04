@@ -32,26 +32,45 @@ fn main() -> Result<()> {
 
         if let Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Press {
-                match key.code {
-                    KeyCode::Esc => app.should_quit = true,
-                    KeyCode::Enter => app.launch_selected(),
-                    KeyCode::Up => app.move_selection(-1),
-                    KeyCode::Down => app.move_selection(1),
-                    KeyCode::Left => app.select_first(),
-                    KeyCode::Right => app.select_last(),
-                    _ if matches_key(&key, app.config.general.favorite_key.as_deref().unwrap_or("alt+f")) => {
-                        app.toggle_favorite();
+                if app.mode == app::AppMode::SudoPassword {
+                    match key.code {
+                        KeyCode::Esc => {
+                            app.mode = app::AppMode::AppSelection;
+                            app.sudo_password.clear();
+                            app.pending_command = None;
+                            app.sudo_log.clear();
+                        }
+                        KeyCode::Enter => app.launch_selected(),
+                        KeyCode::Backspace => {
+                            app.sudo_password.pop();
+                        }
+                        KeyCode::Char(c) => {
+                            app.sudo_password.push(c);
+                        }
+                        _ => {}
                     }
-                    KeyCode::Backspace => {
-                        app.search_query.pop();
-                        app.update_filter();
+                } else {
+                    match key.code {
+                        KeyCode::Esc => app.should_quit = true,
+                        KeyCode::Enter => app.launch_selected(),
+                        KeyCode::Up => app.move_selection(-1),
+                        KeyCode::Down => app.move_selection(1),
+                        KeyCode::Left => app.select_first(),
+                        KeyCode::Right => app.select_last(),
+                        _ if matches_key(&key, app.config.general.favorite_key.as_deref().unwrap_or("alt+f")) => {
+                            app.toggle_favorite();
+                        }
+                        KeyCode::Backspace => {
+                            app.search_query.pop();
+                            app.update_filter();
+                        }
+                        KeyCode::Char(c) => {
+                            app.search_query.push(c);
+                            app.update_filter();
+                        }
+                        KeyCode::Tab => app.auto_complete(),
+                        _ => {}
                     }
-                    KeyCode::Char(c) => {
-                        app.search_query.push(c);
-                        app.update_filter();
-                    }
-                    KeyCode::Tab => app.auto_complete(),
-                    _ => {}
                 }
             }
         }
