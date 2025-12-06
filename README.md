@@ -10,6 +10,7 @@ Flare is a customizable, lightweight, terminal-based application launcher for Li
 - **Instant filtering**: Real-time search filtering as you type.
 - **File Explorer**: Browse and select files directly. Start with `~/` or `/` to search files exclusively, or type a path after an app name to pass it as an argument.
 - **Launch Arguments**: Pass arguments to applications (e.g., `nvim ~/file.txt`).
+- **Sudo Support**: Launch applications with elevated privileges (e.g., `sudo gparted`). Includes a secure, terminal-style password prompt.
 - **Keyboard-centric**: Designed for efficiency with intuitive keybindings.
 - **Highly customizable**: Extensive configuration options for appearance and behavior.
 
@@ -52,6 +53,7 @@ Flare can easily be used as an application launcher in place of `rofi` or `wofi`
 
 You can also use Flare to browse files or pass arguments to applications:
 - **Launch with arguments**: Type the app name followed by arguments (e.g., `neovim ~/Documents/note.txt`).
+- **Sudo Launch**: Type `sudo` before an application name to launch it with elevated privileges. You will be prompted for your password within Flare. Arguments like `sudo -E` are supported.
 - **File Explorer**: Type a path starting with `~/` or `/` (e.g., `~/Projects/` or `/etc/`) to browse directories exclusively. Select a file and press Enter to open it with the default application (via `xdg-open`) or execute it if it's a binary.
 
 Example for Hyprland config:
