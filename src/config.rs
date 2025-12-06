@@ -20,7 +20,7 @@ pub struct AppConfig {
     pub outer_box: SectionConfig,
     pub input: SectionConfig,
     pub scroll: SectionConfig,
-    pub inner_box: SectionConfig,
+    pub inner_box: InnerBoxConfig,
     pub entry: SectionConfig,
     pub entry_selected: SectionConfig,
     pub text: TextConfig,
@@ -99,21 +99,46 @@ impl Default for AppConfig {
                 border_color: Some(String::from("#585b70")),
                 ..SectionConfig::default()
             },
-            inner_box: SectionConfig {
-                title: Some(String::from(" Applications ")),
-                border_color: Some(String::from("#89b4fa")),
-                ..SectionConfig::default()
+            inner_box: InnerBoxConfig {
+                section: SectionConfig {
+                    border_color: Some(String::from("#cba6f7")),
+                    ..SectionConfig::default()
+                },
+                applications_title: None,
+                directories_title: None,
+                authentication_title: None,
             },
             entry: SectionConfig {
-                bg: Some(String::from("#1e1e2e")),
+                fg: Some(String::from("#cdd6f4")),
                 ..SectionConfig::default()
             },
             entry_selected: SectionConfig {
                 fg: Some(String::from("#1e1e2e")),
-                bg: Some(String::from("#cdd6f4")),
+                bg: Some(String::from("#cba6f7")),
                 ..SectionConfig::default()
             },
             text: TextConfig::default(),
+        }
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct InnerBoxConfig {
+    #[serde(flatten)]
+    pub section: SectionConfig,
+
+    pub applications_title: Option<String>,
+    pub directories_title: Option<String>,
+    pub authentication_title: Option<String>,
+}
+
+impl Default for InnerBoxConfig {
+    fn default() -> Self {
+        Self {
+            section: SectionConfig::default(),
+            applications_title: None,
+            directories_title: None,
+            authentication_title: None,
         }
     }
 }
@@ -200,6 +225,28 @@ impl SectionConfig {
 
     pub fn draws_borders(&self, general: &GeneralConfig) -> bool {
         self.borders.unwrap_or(general.show_borders)
+    }
+
+    pub fn block_with_title<'a>(&self, general: &GeneralConfig, title: &'a str) -> Block<'a> {
+        let mut block = Block::default().title(title);
+
+        block = block.title_alignment(self.title_alignment.unwrap_or(TextAlignment::Left).into());
+
+        if self.draws_borders(general) {
+            block = block.borders(Borders::ALL);
+            let rounded = self.rounded.unwrap_or(general.rounded_corners);
+            block = block.border_type(if rounded {
+                BorderType::Rounded
+            } else {
+                BorderType::Plain
+            });
+
+            if let Some(color) = self.border_color.as_deref().and_then(parse_color) {
+                block = block.border_style(Style::default().fg(color));
+            }
+        }
+
+        block.style(self.style())
     }
 
     pub fn block<'a>(&self, general: &GeneralConfig, fallback_title: &'a str) -> Block<'a> {
@@ -337,3 +384,4 @@ pub fn parse_color(value: &str) -> Option<Color> {
         _ => None,
     }
 }
+

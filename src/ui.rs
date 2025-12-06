@@ -90,8 +90,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         scroll_area = inner;
     }
 
-    let padding = if config.inner_box.is_visible() {
-        config.inner_box.border_offset(general) * 2
+    let padding = if config.inner_box.section.is_visible() {
+        config.inner_box.section.border_offset(general) * 2
     } else {
         0
     };
@@ -111,10 +111,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     };
 
     if app.mode == AppMode::SudoPassword {
-        let block = if config.inner_box.is_visible() {
-            config.inner_box.block(general, " Sudo Password ")
+        let block = if config.inner_box.section.is_visible() {
+            let title = config.inner_box.authentication_title.as_deref().unwrap_or(" Authentication ");
+            config.inner_box.section.block_with_title(general, title)
         } else {
-            Block::default().borders(Borders::ALL).title(" Sudo Password ")
+            Block::default().borders(Borders::ALL).title(" Authentication ")
         };
 
         let inner = block.inner(scroll_area);
@@ -172,13 +173,13 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             .highlight_style(highlight_style)
             .highlight_symbol(highlight_symbol);
 
-        if config.inner_box.is_visible() {
+        if config.inner_box.section.is_visible() {
             let title = if app.mode == AppMode::AppSelection {
-                " Applications "
+                config.inner_box.applications_title.as_deref().unwrap_or(" Applications ")
             } else {
-                " Files "
+                config.inner_box.directories_title.as_deref().unwrap_or(" Directories ")
             };
-            list = list.block(config.inner_box.block(general, title));
+            list = list.block(config.inner_box.section.block_with_title(general, title));
         }
 
         f.render_stateful_widget(list, scroll_area, &mut app.list_state);
