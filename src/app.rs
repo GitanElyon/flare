@@ -14,6 +14,7 @@ use std::{
 pub enum AppMode {
     AppSelection,
     FileSelection,
+    SudoPassword,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +35,10 @@ pub struct App {
     pub mode: AppMode,
     pub filtered_files: Vec<String>,
     pub history: History,
+    pub sudo_password: String,
+    pub pending_command: Option<(String, Vec<String>, Vec<String>)>,
+    pub sudo_log: Vec<String>,
+    pub sudo_args: Vec<String>,
 }
 
 impl App {
@@ -53,6 +58,10 @@ impl App {
             mode: AppMode::AppSelection,
             filtered_files: Vec::new(),
             history,
+            sudo_password: String::new(),
+            pending_command: None,
+            sudo_log: Vec::new(),
+            sudo_args: Vec::new(),
         };
 
         app.sort_entries();
@@ -101,17 +110,65 @@ impl App {
         self.launch_args = None;
         self.mode = AppMode::AppSelection;
         self.filtered_files.clear();
+        self.sudo_args.clear();
+
+        let query_slice = if self.search_query.starts_with("sudo") {
+            let parts: Vec<&str> = self.search_query.split_whitespace().collect();
+            let mut idx = 1; // skip "sudo"
+            let mut is_sudo = false;
+
+            if parts.first() == Some(&"sudo") {
+                is_sudo = true;
+                while idx < parts.len() {
+                    let part = parts[idx];
+                    if part.starts_with('-') {
+                        self.sudo_args.push(part.to_string());
+                        // check for flags that take arguments
+                        // -C fd, -g group, -h host, -p prompt, -r role, -t type, -U user, -u user
+                        // also handle bundled flags like -Ab (no arg) vs -u user
+                        // simplified check: if it's exactly one of these flags, take next arg
+                        if ["-C", "-g", "-h", "-p", "-r", "-t", "-U", "-u"].contains(&part) {
+                            if idx + 1 < parts.len() {
+                                idx += 1;
+                                self.sudo_args.push(parts[idx].to_string());
+                            }
+                        }
+                    } else {
+                        break;
+                    }
+                    idx += 1;
+                }
+            }
+
+            if is_sudo {
+                // reconstruct the query from the remaining parts
+                // we need to find where the command starts in the original string to preserve spaces if possible,
+                // or just join the parts. Joining parts is safer for now.
+                if idx < parts.len() {
+                    // this is a bit inefficient but works
+                    parts[idx..].join(" ")
+                } else {
+                    String::new()
+                }
+            } else {
+                self.search_query.clone()
+            }
+        } else {
+            self.search_query.clone()
+        };
+        
+        let query_slice_str = query_slice.trim();
 
         if self.config.features.enable_file_explorer
-            && (self.search_query.starts_with('~') || self.search_query.starts_with('/'))
+            && (query_slice_str.starts_with('~') || query_slice_str.starts_with('/'))
         {
             self.mode = AppMode::FileSelection;
-            self.filtered_files = list_files(&self.search_query, self.config.features.dirs_first);
+            self.filtered_files = list_files(query_slice_str, self.config.features.dirs_first);
             self.filtered_entries.clear();
-        } else if self.search_query.is_empty() {
+        } else if query_slice_str.is_empty() {
             self.filtered_entries = self.entries.clone();
         } else {
-            let query = self.search_query.to_lowercase();
+            let query = query_slice_str.to_lowercase();
             let matches: Vec<AppEntry> = self
                 .entries
                 .iter()
@@ -122,7 +179,7 @@ impl App {
             if !matches.is_empty() {
                 self.filtered_entries = matches;
             } else {
-                let words: Vec<&str> = self.search_query.split_whitespace().collect();
+                let words: Vec<&str> = query_slice_str.split_whitespace().collect();
                 let mut found = false;
 
                 for i in (1..words.len()).rev() {
@@ -248,6 +305,11 @@ impl App {
     }
 
     pub fn launch_selected(&mut self) {
+        if self.mode == AppMode::SudoPassword {
+            self.verify_sudo_and_launch();
+            return;
+        }
+
         if let Some(i) = self.list_state.selected() {
             if self.mode == AppMode::FileSelection && self.filtered_entries.is_empty() {
                 if let Some(selected_file) = self.filtered_files.get(i).cloned() {
@@ -257,16 +319,14 @@ impl App {
             }
 
             let app_entry = if self.mode == AppMode::FileSelection {
-                self.filtered_entries.first()
+                self.filtered_entries.first().cloned()
             } else {
-                self.filtered_entries.get(i)
+                self.filtered_entries.get(i).cloned()
             };
 
             if let Some(entry) = app_entry {
                 self.history.increment(&entry.name);
                 if let Some((cmd, args)) = entry.exec_args.split_first() {
-                    let mut command = Command::new(cmd);
-
                     let mut final_args = Vec::new();
 
                     if self.config.features.enable_launch_args {
@@ -314,30 +374,130 @@ impl App {
                         }
                     }
 
-                    command
-                        .args(final_args)
-                        .stdin(Stdio::null())
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null());
-
-                    unsafe {
-                        command.pre_exec(|| {
-                            libc::setsid();
-                            libc::signal(libc::SIGHUP, libc::SIG_IGN);
-                            Ok(()) as io::Result<()>
-                        });
+                    if self.search_query.starts_with("sudo") {
+                        self.mode = AppMode::SudoPassword;
+                        self.sudo_password.clear();
+                        self.sudo_log = vec!["Password: ".to_string()];
+                        self.pending_command = Some((cmd.clone(), final_args, self.sudo_args.clone()));
+                        return;
                     }
 
-                    match command.spawn() {
-                        Ok(_) => {
-                            self.should_quit = true;
-                            self.status_message = None;
-                        }
-                        Err(err) => {
-                            self.status_message =
-                                Some(format!("Failed to launch {}: {}", entry.name, err));
+                    self.spawn_command(cmd, final_args, &entry.name);
+                }
+            }
+        }
+    }
+
+    fn spawn_command(&mut self, cmd: &str, args: Vec<String>, entry_name: &str) {
+        let mut command = Command::new(cmd);
+        command
+            .args(args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+
+        unsafe {
+            command.pre_exec(|| {
+                libc::setsid();
+                libc::signal(libc::SIGHUP, libc::SIG_IGN);
+                Ok(()) as io::Result<()>
+            });
+        }
+
+        match command.spawn() {
+            Ok(_) => {
+                self.should_quit = true;
+                self.status_message = None;
+            }
+            Err(err) => {
+                self.status_message =
+                    Some(format!("Failed to launch {}: {}", entry_name, err));
+            }
+        }
+    }
+
+    fn verify_sudo_and_launch(&mut self) {
+        if let Some((cmd, args, sudo_args)) = &self.pending_command {
+            // filter sudo args for validation (only allow safe args)
+            let validation_args: Vec<String> = sudo_args.iter()
+                .filter(|arg| ["-u", "-g", "-h", "-p", "-n", "-k", "-S"].contains(&arg.as_str()) || !arg.starts_with('-'))
+                .cloned()
+                .collect();
+
+            let child = Command::new("sudo")
+                .args(validation_args)
+                .arg("-v")
+                .arg("-S")
+                .arg("-k")
+                .stdin(Stdio::piped())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn();
+
+            match child {
+                Ok(mut child) => {
+                    if let Some(mut stdin) = child.stdin.take() {
+                        use std::io::Write;
+                        if let Err(_) = writeln!(stdin, "{}", self.sudo_password) {
+                             self.sudo_log.push("Failed to write password".to_string());
+                             self.sudo_log.push("Password: ".to_string());
+                             self.sudo_password.clear();
+                             return;
                         }
                     }
+                    
+                    match child.wait() {
+                        Ok(status) => {
+                            if status.success() {
+                                let mut command = Command::new("sudo");
+                                command.args(sudo_args);
+                                command.arg("-b"); // run in background
+                                command.arg("-S");
+                                command.arg(cmd);
+                                command.args(args);
+                                
+                                command.stdin(Stdio::piped())
+                                    .stdout(Stdio::null())
+                                    .stderr(Stdio::null());
+                                    
+                                unsafe {
+                                    command.pre_exec(|| {
+                                        libc::setsid();
+                                        libc::signal(libc::SIGHUP, libc::SIG_IGN);
+                                        Ok(()) as io::Result<()>
+                                    });
+                                }
+                                
+                                match command.spawn() {
+                                    Ok(mut child) => {
+                                         if let Some(mut stdin) = child.stdin.take() {
+                                            use std::io::Write;
+                                            let _ = writeln!(stdin, "{}", self.sudo_password);
+                                        }
+                                        self.should_quit = true;
+                                        self.status_message = None;
+                                    }
+                                    Err(err) => {
+                                        self.status_message = Some(format!("Failed to launch sudo: {}", err));
+                                    }
+                                }
+                            } else {
+                                self.sudo_log.push("Sorry, try again.".to_string());
+                                self.sudo_log.push("Password: ".to_string());
+                                self.sudo_password.clear();
+                            }
+                        }
+                        Err(e) => {
+                             self.sudo_log.push(format!("Sudo check failed: {}", e));
+                             self.sudo_log.push("Password: ".to_string());
+                             self.sudo_password.clear();
+                        }
+                    }
+                }
+                Err(e) => {
+                    self.sudo_log.push(format!("Failed to run sudo: {}", e));
+                    self.sudo_log.push("Password: ".to_string());
+                    self.sudo_password.clear();
                 }
             }
         }

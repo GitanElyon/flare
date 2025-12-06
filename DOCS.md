@@ -52,6 +52,9 @@ border-color = "#585b70"
 [inner-box]
 visible = true
 title = " Applications "
+applications-title = " Applications "
+directories-title = " Directories "
+authentication-title = " Authentication "
 title-alignment = "center"
 border-color = "#89b4fa"
 
@@ -86,6 +89,9 @@ Additional section-specific options:
 
 - `general.highlight-symbol`: string drawn in front of the selected entry. Set to an empty string (or disable `entry-selected.visible`) to hide it.
 - `text.alignment`: aligns entry labels within the list (`left`, `center`, `right`).
+- `inner-box.applications-title`: Title shown when browsing applications. Defaults to " Applications ".
+- `inner-box.directories-title`: Title shown when browsing files/directories. Defaults to " Directories ".
+- `inner-box.authentication-title`: Title shown when prompting for sudo password. Defaults to " Authentication ".
 
 ### General Section
 
