@@ -9,6 +9,7 @@ Flare is a customizable, lightweight, terminal-based application launcher for Li
 - **TUI interface**: Clean, terminal-based user interface.
 - **Instant filtering**: Real-time search filtering as you type.
 - **File Explorer**: Browse and select files directly. Start with `~/` or `/` to search files exclusively, or type a path after an app name to pass it as an argument.
+- **Symbol Search**: Type `.` to search through Nerd Font symbols. Select one to copy it to the clipboard.
 - **Launch Arguments**: Pass arguments to applications (e.g., `nvim ~/file.txt`).
 - **Sudo Support**: Launch applications with elevated privileges (e.g., `sudo gparted`). Includes a secure, terminal-style password prompt.
 - **Keyboard-centric**: Designed for efficiency with intuitive keybindings.
@@ -44,6 +45,28 @@ sudo install -Dm755 target/release/flare /usr/local/bin/flare
 ```
 
 Use the manual path if you prefer to inspect the build artifacts yourself or package Flare for a distribution.
+
+### Nix/NixOS
+
+If you are running Nix enabled, you can run Flare directly:
+
+```bash
+nix run github:GitanElyon/flare
+```
+
+To install Flare to your profile:
+
+```bash
+nix profile install github:GitanElyon/flare
+```
+
+To update an existing installation:
+
+```bash
+nix profile upgrade flare
+```
+
+**Note for developers:** If you are developing Flare locally and using Nix Flakes, you **must** `git add` your changes before running `nix run .` or `nix profile install .`. Flakes only recognize files that are tracked by Git.
 
 # Usage
 

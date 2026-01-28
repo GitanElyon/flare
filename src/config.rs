@@ -151,6 +151,7 @@ pub struct GeneralConfig {
     pub highlight_symbol: Option<String>,
     pub favorite_symbol: Option<String>,
     pub favorite_key: Option<String>,
+    pub clipboard_command: Option<String>,
 }
 
 impl Default for GeneralConfig {
@@ -161,6 +162,7 @@ impl Default for GeneralConfig {
             highlight_symbol: Some(String::from(">> ")),
             favorite_symbol: Some(String::from("★ ")),
             favorite_key: Some(String::from("alt+f")),
+            clipboard_command: None,
         }
     }
 }
@@ -174,6 +176,7 @@ pub struct FeaturesConfig {
     pub dirs_first: bool,
     pub show_duplicates: bool,
     pub recent_first: bool,
+    pub symbol_search_trigger: String,
 }
 
 impl Default for FeaturesConfig {
@@ -185,6 +188,7 @@ impl Default for FeaturesConfig {
             dirs_first: true,
             show_duplicates: false,
             recent_first: true,
+            symbol_search_trigger: String::from("."),
         }
     }
 }

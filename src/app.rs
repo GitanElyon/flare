@@ -1,5 +1,6 @@
 use crate::config::AppConfig;
 use crate::history::History;
+use arboard::Clipboard;
 use freedesktop_desktop_entry::{Iter, default_paths, get_languages_from_env};
 use ratatui::widgets::ListState;
 use std::{
@@ -15,6 +16,7 @@ pub enum AppMode {
     AppSelection,
     FileSelection,
     SudoPassword,
+    SymbolSelection,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +36,7 @@ pub struct App {
     pub launch_args: Option<Vec<String>>,
     pub mode: AppMode,
     pub filtered_files: Vec<String>,
+    pub filtered_symbols: Vec<(&'static str, &'static str)>,
     pub history: History,
     pub sudo_password: String,
     pub pending_command: Option<(String, Vec<String>, Vec<String>)>,
@@ -57,6 +60,7 @@ impl App {
             launch_args: None,
             mode: AppMode::AppSelection,
             filtered_files: Vec::new(),
+            filtered_symbols: Vec::new(),
             history,
             sudo_password: String::new(),
             pending_command: None,
@@ -110,7 +114,35 @@ impl App {
         self.launch_args = None;
         self.mode = AppMode::AppSelection;
         self.filtered_files.clear();
+        self.filtered_symbols.clear();
         self.sudo_args.clear();
+
+        if self.search_query.starts_with(&self.config.features.symbol_search_trigger) {
+            self.mode = AppMode::SymbolSelection;
+            self.filtered_entries.clear();
+            
+            let query = self.search_query
+                .strip_prefix(&self.config.features.symbol_search_trigger)
+                .unwrap_or("")
+                .trim()
+                .to_lowercase();
+
+            if query.is_empty() {
+                self.filtered_symbols = crate::symbols::SYMBOLS.iter().cloned().collect();
+            } else {
+                self.filtered_symbols = crate::symbols::SYMBOLS.iter()
+                    .filter(|(name, _)| fuzzy_match(&query, &name.to_lowercase()))
+                    .cloned()
+                    .collect();
+            }
+            // Ensure selection is valid
+            if self.filtered_symbols.is_empty() {
+                self.list_state.select(None);
+            } else {
+                self.list_state.select(Some(0));
+            }
+            return;
+        }
 
         let query_slice = if self.search_query.starts_with("sudo") {
             let parts: Vec<&str> = self.search_query.split_whitespace().collect();
@@ -307,6 +339,48 @@ impl App {
     pub fn launch_selected(&mut self) {
         if self.mode == AppMode::SudoPassword {
             self.verify_sudo_and_launch();
+            return;
+        }
+
+        if self.mode == AppMode::SymbolSelection {
+            if let Some(i) = self.list_state.selected() {
+                if let Some((_, symbol)) = self.filtered_symbols.get(i) {
+                    let mut copied = false;
+                    if let Some(cmd) = &self.config.general.clipboard_command {
+                        let parts: Vec<&str> = cmd.split_whitespace().collect();
+                        if let Some((prog, args)) = parts.split_first() {
+                            let child = Command::new(prog)
+                                .args(args)
+                                .stdin(Stdio::piped())
+                                .spawn();
+                            
+                            if let Ok(mut child) = child {
+                                use std::io::Write;
+                                if let Some(mut stdin) = child.stdin.take() {
+                                    let _ = stdin.write_all(symbol.as_bytes());
+                                }
+                                let _ = child.wait();
+                                copied = true;
+                                self.should_quit = true;
+                            } else {
+                                self.status_message = Some(format!("Failed to run clipboard command: {}", cmd));
+                            }
+                        }
+                    }
+
+                    if !copied {
+                        if let Ok(mut clipboard) = Clipboard::new() {
+                            if let Err(e) = clipboard.set_text(symbol.to_string()) {
+                                self.status_message = Some(format!("Clipboard error: {}", e));
+                            } else {
+                                self.should_quit = true;
+                            }
+                        } else {
+                            self.status_message = Some("Failed to initialize clipboard".to_string());
+                        }
+                    }
+                }
+            }
             return;
         }
 

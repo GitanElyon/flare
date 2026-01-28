@@ -10,7 +10,10 @@ pkgs.rustPlatform.buildRustPackage rec {
     lockFile = ./Cargo.lock;
   };
   nativeBuildInputs = [ pkgs.pkg-config ];
-  buildInputs = [ ];
+  buildInputs = [
+    pkgs.libX11
+    pkgs.libxcb
+  ];
 
   meta = with pkgs.lib; {
     description = "A feature-rich customizable TUI app launcher written in Rust";
