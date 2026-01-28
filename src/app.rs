@@ -283,10 +283,11 @@ impl App {
     }
 
     pub fn move_selection(&mut self, delta: i32) {
-        let len = if self.mode == AppMode::AppSelection {
-            self.filtered_entries.len()
-        } else {
-            self.filtered_files.len()
+        let len = match self.mode {
+            AppMode::AppSelection => self.filtered_entries.len(),
+            AppMode::FileSelection => self.filtered_files.len(),
+            AppMode::SymbolSelection => self.filtered_symbols.len(),
+            _ => 0,
         };
 
         if len == 0 {
@@ -303,10 +304,11 @@ impl App {
     }
 
     pub fn select_first(&mut self) {
-        let len = if self.mode == AppMode::AppSelection {
-            self.filtered_entries.len()
-        } else {
-            self.filtered_files.len()
+        let len = match self.mode {
+            AppMode::AppSelection => self.filtered_entries.len(),
+            AppMode::FileSelection => self.filtered_files.len(),
+            AppMode::SymbolSelection => self.filtered_symbols.len(),
+            _ => 0,
         };
 
         if len > 0 {
@@ -315,10 +317,11 @@ impl App {
     }
 
     pub fn select_last(&mut self) {
-        let len = if self.mode == AppMode::AppSelection {
-            self.filtered_entries.len()
-        } else {
-            self.filtered_files.len()
+        let len = match self.mode {
+            AppMode::AppSelection => self.filtered_entries.len(),
+            AppMode::FileSelection => self.filtered_files.len(),
+            AppMode::SymbolSelection => self.filtered_symbols.len(),
+            _ => 0,
         };
 
         if len > 0 {
