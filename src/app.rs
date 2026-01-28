@@ -1,5 +1,6 @@
 use crate::config::AppConfig;
 use crate::history::History;
+use arboard::Clipboard;
 use freedesktop_desktop_entry::{Iter, default_paths, get_languages_from_env};
 use ratatui::widgets::ListState;
 use std::{
@@ -15,6 +16,7 @@ pub enum AppMode {
     AppSelection,
     FileSelection,
     SudoPassword,
+    SymbolSelection,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +36,7 @@ pub struct App {
     pub launch_args: Option<Vec<String>>,
     pub mode: AppMode,
     pub filtered_files: Vec<String>,
+    pub filtered_symbols: Vec<(&'static str, &'static str)>,
     pub history: History,
     pub sudo_password: String,
     pub pending_command: Option<(String, Vec<String>, Vec<String>)>,
@@ -57,6 +60,7 @@ impl App {
             launch_args: None,
             mode: AppMode::AppSelection,
             filtered_files: Vec::new(),
+            filtered_symbols: Vec::new(),
             history,
             sudo_password: String::new(),
             pending_command: None,
@@ -110,7 +114,41 @@ impl App {
         self.launch_args = None;
         self.mode = AppMode::AppSelection;
         self.filtered_files.clear();
+        self.filtered_symbols.clear();
         self.sudo_args.clear();
+
+        if self.search_query.starts_with(&self.config.features.symbol_search_trigger) {
+            self.mode = AppMode::SymbolSelection;
+            self.filtered_entries.clear();
+            
+            let query = self.search_query
+                .strip_prefix(&self.config.features.symbol_search_trigger)
+                .unwrap_or("")
+                .trim()
+                .to_lowercase();
+
+            if query.is_empty() {
+                self.filtered_symbols = crate::symbols::SYMBOLS.iter().cloned().collect();
+            } else {
+                let mut matches: Vec<(i64, (&'static str, &'static str))> = crate::symbols::SYMBOLS
+                    .iter()
+                    .filter_map(|(name, val)| {
+                        fuzzy_score(&query, name).map(|score| (score, (*name, *val)))
+                    })
+                    .collect();
+
+                matches.sort_by(|a, b| b.0.cmp(&a.0));
+
+                self.filtered_symbols = matches.into_iter().map(|(_, item)| item).collect();
+            }
+            // Ensure selection is valid
+            if self.filtered_symbols.is_empty() {
+                self.list_state.select(None);
+            } else {
+                self.list_state.select(Some(0));
+            }
+            return;
+        }
 
         let query_slice = if self.search_query.starts_with("sudo") {
             let parts: Vec<&str> = self.search_query.split_whitespace().collect();
@@ -169,12 +207,17 @@ impl App {
             self.filtered_entries = self.entries.clone();
         } else {
             let query = query_slice_str.to_lowercase();
-            let matches: Vec<AppEntry> = self
+            let mut matches: Vec<(i64, AppEntry)> = self
                 .entries
                 .iter()
-                .filter(|e| fuzzy_match(&query, &e.name.to_lowercase()))
-                .cloned()
+                .filter_map(|e| {
+                    fuzzy_score(&query, &e.name).map(|score| (score, e.clone()))
+                })
                 .collect();
+
+            matches.sort_by(|a, b| b.0.cmp(&a.0));
+
+            let matches: Vec<AppEntry> = matches.into_iter().map(|(_, e)| e).collect();
 
             if !matches.is_empty() {
                 self.filtered_entries = matches;
@@ -186,12 +229,17 @@ impl App {
                     let sub_query = words[0..i].join(" ");
                     let sub_query_lower = sub_query.to_lowercase();
 
-                    let sub_matches: Vec<AppEntry> = self
+                    let mut sub_matches: Vec<(i64, AppEntry)> = self
                         .entries
                         .iter()
-                        .filter(|e| fuzzy_match(&sub_query_lower, &e.name.to_lowercase()))
-                        .cloned()
+                        .filter_map(|e| {
+                            fuzzy_score(&sub_query_lower, &e.name).map(|score| (score, e.clone()))
+                        })
                         .collect();
+
+                    sub_matches.sort_by(|a, b| b.0.cmp(&a.0));
+
+                    let sub_matches: Vec<AppEntry> = sub_matches.into_iter().map(|(_, e)| e).collect();
 
                     if !sub_matches.is_empty() {
                         self.filtered_entries = sub_matches;
@@ -235,10 +283,11 @@ impl App {
     }
 
     pub fn move_selection(&mut self, delta: i32) {
-        let len = if self.mode == AppMode::AppSelection {
-            self.filtered_entries.len()
-        } else {
-            self.filtered_files.len()
+        let len = match self.mode {
+            AppMode::AppSelection => self.filtered_entries.len(),
+            AppMode::FileSelection => self.filtered_files.len(),
+            AppMode::SymbolSelection => self.filtered_symbols.len(),
+            _ => 0,
         };
 
         if len == 0 {
@@ -255,10 +304,11 @@ impl App {
     }
 
     pub fn select_first(&mut self) {
-        let len = if self.mode == AppMode::AppSelection {
-            self.filtered_entries.len()
-        } else {
-            self.filtered_files.len()
+        let len = match self.mode {
+            AppMode::AppSelection => self.filtered_entries.len(),
+            AppMode::FileSelection => self.filtered_files.len(),
+            AppMode::SymbolSelection => self.filtered_symbols.len(),
+            _ => 0,
         };
 
         if len > 0 {
@@ -267,10 +317,11 @@ impl App {
     }
 
     pub fn select_last(&mut self) {
-        let len = if self.mode == AppMode::AppSelection {
-            self.filtered_entries.len()
-        } else {
-            self.filtered_files.len()
+        let len = match self.mode {
+            AppMode::AppSelection => self.filtered_entries.len(),
+            AppMode::FileSelection => self.filtered_files.len(),
+            AppMode::SymbolSelection => self.filtered_symbols.len(),
+            _ => 0,
         };
 
         if len > 0 {
@@ -307,6 +358,48 @@ impl App {
     pub fn launch_selected(&mut self) {
         if self.mode == AppMode::SudoPassword {
             self.verify_sudo_and_launch();
+            return;
+        }
+
+        if self.mode == AppMode::SymbolSelection {
+            if let Some(i) = self.list_state.selected() {
+                if let Some((_, symbol)) = self.filtered_symbols.get(i) {
+                    let mut copied = false;
+                    if let Some(cmd) = &self.config.general.clipboard_command {
+                        let parts: Vec<&str> = cmd.split_whitespace().collect();
+                        if let Some((prog, args)) = parts.split_first() {
+                            let child = Command::new(prog)
+                                .args(args)
+                                .stdin(Stdio::piped())
+                                .spawn();
+                            
+                            if let Ok(mut child) = child {
+                                use std::io::Write;
+                                if let Some(mut stdin) = child.stdin.take() {
+                                    let _ = stdin.write_all(symbol.as_bytes());
+                                }
+                                let _ = child.wait();
+                                copied = true;
+                                self.should_quit = true;
+                            } else {
+                                self.status_message = Some(format!("Failed to run clipboard command: {}", cmd));
+                            }
+                        }
+                    }
+
+                    if !copied {
+                        if let Ok(mut clipboard) = Clipboard::new() {
+                            if let Err(e) = clipboard.set_text(symbol.to_string()) {
+                                self.status_message = Some(format!("Clipboard error: {}", e));
+                            } else {
+                                self.should_quit = true;
+                            }
+                        } else {
+                            self.status_message = Some("Failed to initialize clipboard".to_string());
+                        }
+                    }
+                }
+            }
             return;
         }
 
@@ -577,25 +670,56 @@ fn scan_desktop_files(show_duplicates: bool) -> Vec<AppEntry> {
     entries
 }
 
-fn fuzzy_match(query: &str, target: &str) -> bool {
-    let mut query_chars = query.chars();
-    let mut matcher = query_chars.next();
 
-    if matcher.is_none() {
-        return true;
+fn fuzzy_score(query: &str, target: &str) -> Option<i64> {
+    let query_chars: Vec<char> = query.chars().collect();
+    let target_chars: Vec<char> = target.chars().collect();
+
+    if query_chars.is_empty() {
+        return Some(0);
     }
 
-    for t in target.chars() {
-        if let Some(q) = matcher {
-            if t == q {
-                matcher = query_chars.next();
-                if matcher.is_none() {
-                    return true;
+    let mut score = 0;
+    let mut pattern_idx = 0;
+    let mut prev_match_idx = -100;
+
+    for (idx, &t_char) in target_chars.iter().enumerate() {
+        if pattern_idx < query_chars.len() {
+            let q_char = query_chars[pattern_idx];
+            if t_char.eq_ignore_ascii_case(&q_char) {
+                let mut char_score = 10;
+
+                if idx as i64 == prev_match_idx + 1 {
+                    char_score += 40;
                 }
+
+                if idx == 0
+                    || target_chars[idx - 1].is_whitespace()
+                    || ['_', '-', '.', '/'].contains(&target_chars[idx - 1])
+                {
+                    char_score += 20;
+                }
+
+                if t_char.is_uppercase() {
+                    char_score += 10;
+                }
+
+                score += char_score;
+                prev_match_idx = idx as i64;
+                pattern_idx += 1;
             }
         }
     }
-    false
+
+    if pattern_idx == query_chars.len() {
+        score -= (target_chars.len() as i64 - query_chars.len() as i64);
+        return Some(score);
+    }
+    None
+}
+
+fn fuzzy_match(query: &str, target: &str) -> bool {
+    fuzzy_score(query, target).is_some()
 }
 
 fn expand_tilde(path: &str) -> String {
@@ -615,20 +739,27 @@ fn expand_tilde(path: &str) -> String {
 fn list_files(query_path: &str, dirs_first: bool) -> Vec<String> {
     let expanded = expand_tilde(query_path);
     let path = Path::new(&expanded);
-    
+
     let (dir, file_prefix) = if query_path.ends_with('/') {
         (path, "")
     } else {
-        (path.parent().unwrap_or(Path::new("")), path.file_name().and_then(|s| s.to_str()).unwrap_or(""))
+        (
+            path.parent().unwrap_or(Path::new("")),
+            path.file_name().and_then(|s| s.to_str()).unwrap_or(""),
+        )
     };
 
     let search_dir = if dir.as_os_str().is_empty() {
-        if query_path.starts_with('/') { Path::new("/") } else { Path::new(".") }
+        if query_path.starts_with('/') {
+            Path::new("/")
+        } else {
+            Path::new(".")
+        }
     } else {
         dir
     };
 
-    let mut entries_vec: Vec<(String, bool)> = Vec::new();
+    let mut entries_vec: Vec<(String, bool, i64)> = Vec::new();
     if let Ok(entries) = fs::read_dir(search_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
@@ -638,7 +769,7 @@ fn list_files(query_path: &str, dirs_first: bool) -> Vec<String> {
             if name.starts_with('.') && !file_prefix.starts_with('.') {
                 continue;
             }
-            if fuzzy_match(file_prefix, name) {
+            if let Some(score) = fuzzy_score(file_prefix, name) {
                 let mut path_str = path.to_string_lossy().to_string();
                 if query_path.starts_with('~') {
                     if let Some(home) = dirs::home_dir() {
@@ -648,22 +779,26 @@ fn list_files(query_path: &str, dirs_first: bool) -> Vec<String> {
                         }
                     }
                 }
-                entries_vec.push((path_str, is_dir));
+                entries_vec.push((path_str, is_dir, score));
             }
         }
     }
 
     if dirs_first {
-        entries_vec.sort_by(|(a_path, a_is_dir), (b_path, b_is_dir)| {
-            if *a_is_dir != *b_is_dir {
-                b_is_dir.cmp(a_is_dir)
-            } else {
-                a_path.cmp(b_path)
-            }
-        });
+        entries_vec.sort_by(
+            |(a_path, a_is_dir, a_score), (b_path, b_is_dir, b_score)| {
+                if *a_is_dir != *b_is_dir {
+                    b_is_dir.cmp(a_is_dir)
+                } else {
+                    b_score.cmp(a_score).then_with(|| a_path.cmp(b_path))
+                }
+            },
+        );
     } else {
-        entries_vec.sort_by(|(a, _), (b, _)| a.cmp(b));
+        entries_vec.sort_by(|(a_path, _, a_score), (b_path, _, b_score)| {
+            b_score.cmp(a_score).then_with(|| a_path.cmp(b_path))
+        });
     }
 
-    entries_vec.into_iter().map(|(p, _)| p).collect()
+    entries_vec.into_iter().map(|(p, _, _)| p).collect()
 }

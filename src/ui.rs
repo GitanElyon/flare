@@ -61,9 +61,14 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let list_chunk = chunks[chunk_index];
 
     if let Some(chunk) = search_chunk {
+        let title = if app.mode == AppMode::SymbolSelection {
+            " Symbols "
+        } else {
+            " Search "
+        };
         let search_widget = Paragraph::new(app.search_query.as_str())
             .style(config.input.style())
-            .block(config.input.block(general, " Search "));
+            .block(config.input.block(general, title));
         f.render_widget(search_widget, chunk);
 
         let cursor_offset = config.input.border_offset(general);
@@ -150,6 +155,18 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style)
                 })
                 .collect()
+        } else if app.mode == AppMode::SymbolSelection {
+            app.filtered_symbols
+                .iter()
+                .map(|(name, symbol)| {
+                    if !config.text.is_visible() {
+                        return ListItem::new(Span::raw(""));
+                    }
+                    let text = format!("{} {}", symbol, name);
+                    let display_text = aligned_text(&text, text_area_width, config.text.alignment());
+                    ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style)
+                })
+                .collect()
         } else {
             app.filtered_files
                 .iter()
@@ -176,6 +193,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         if config.inner_box.section.is_visible() {
             let title = if app.mode == AppMode::AppSelection {
                 config.inner_box.applications_title.as_deref().unwrap_or(" Applications ")
+            } else if app.mode == AppMode::SymbolSelection {
+                " Symbols "
             } else {
                 config.inner_box.directories_title.as_deref().unwrap_or(" Directories ")
             };

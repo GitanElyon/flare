@@ -20,6 +20,7 @@ show-borders = true
 highlight-symbol = "» "
 favorite-symbol = "★ "
 favorite-key = "alt+f"
+clipboard-command = "wl-copy" # Optional: command to use for copying symbols (e.g., "wl-copy", "xclip -selection clipboard")
 
 [features]
 enable-file-explorer = true
@@ -28,6 +29,7 @@ enable-auto-complete = true
 dirs-first = true
 show-duplicates = false
 recent-first = true
+symbol-search-trigger = "."
 
 [window]
 visible = false          # alias: visable = true
@@ -92,6 +94,35 @@ Additional section-specific options:
 - `inner-box.applications-title`: Title shown when browsing applications. Defaults to " Applications ".
 - `inner-box.directories-title`: Title shown when browsing files/directories. Defaults to " Directories ".
 - `inner-box.authentication-title`: Title shown when prompting for sudo password. Defaults to " Authentication ".
+- `general.clipboard-command`: Optional shell command to use for copying symbols. If not set, Flare uses an internal clipboard library. Example: `"wl-copy"` or `"xclip -selection clipboard"`.
+
+## NixOS Installation
+
+### Using Flakes
+Add Flare to your `flake.nix` inputs:
+
+```nix
+inputs.flare.url = "github:GitanElyon/flare";
+```
+
+Then add it to your `environment.systemPackages`:
+
+```nix
+environment.systemPackages = [
+  inputs.flare.packages.${pkgs.system}.default
+];
+```
+
+### Without Flakes
+You can use `fetchTarball` to include Flare in your `configuration.nix`:
+
+```nix
+let
+  flare = import (fetchTarball "https://github.com/GitanElyon/flare/archive/main.tar.gz") {};
+in {
+  environment.systemPackages = [ flare ];
+}
+```
 
 ### General Section
 
