@@ -14,7 +14,7 @@
       packages.default = pkgs.callPackage ./default.nix { };
       apps.default = {
         type = "app";
-        program = "${self.packages.${system}.default}/bin/tuig";
+        program = "${self.packages.${system}.default}/bin/flare";
       };
       devShells.default = pkgs.mkShell {
         nativeBuildInputs = with pkgs; [
