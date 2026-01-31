@@ -155,6 +155,36 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style)
                 })
                 .collect()
+        } else if app.mode == AppMode::Calculator {
+            let mut list_items = Vec::new();
+            if let Some((expr, result)) = &app.calculator_result {
+                let mut text = if config.features.replace_calc_symbols {
+                    format!("{} = {}", replace_symbols(expr), replace_symbols(result))
+                } else {
+                    format!("{} = {}", expr, result)
+                };
+                if config.features.fancy_numbers {
+                    text = format_fancy(&text);
+                }
+                
+                let display_text = aligned_text(&text, text_area_width, config.text.alignment());
+                list_items.push(ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style));
+            }
+            
+            for entry in &app.math_history.entries {
+                let mut text = if config.features.replace_calc_symbols {
+                    format!("{} = {}", replace_symbols(&entry.expression), replace_symbols(&entry.result))
+                } else {
+                    format!("{} = {}", entry.expression, entry.result)
+                };
+                if config.features.fancy_numbers {
+                    text = format_fancy(&text);
+                }
+                
+                let display_text = aligned_text(&text, text_area_width, config.text.alignment());
+                list_items.push(ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style));
+            }
+            list_items
         } else if app.mode == AppMode::SymbolSelection {
             app.filtered_symbols
                 .iter()
@@ -195,6 +225,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                 config.inner_box.applications_title.as_deref().unwrap_or(" Applications ")
             } else if app.mode == AppMode::SymbolSelection {
                 " Symbols "
+            } else if app.mode == AppMode::Calculator {
+                " Solution "
             } else {
                 config.inner_box.directories_title.as_deref().unwrap_or(" Directories ")
             };
@@ -239,4 +271,137 @@ fn highlight_symbol_width(config: &crate::config::AppConfig) -> u16 {
         .as_deref()
         .map(|s| s.chars().count() as u16)
         .unwrap_or(0)
+}
+
+fn replace_symbols(expr: &str) -> String {
+    expr.replace("sqrt", "√")
+        .replace("integrate", "∫")
+        .replace("diff", "∂")
+        .replace("limit", "lim")
+        .replace("pi", "π")
+}
+
+fn to_superscript(input: &str) -> String {
+    let mut result = String::new();
+    let mut chars = input.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '^' {
+            // Check if next is a paren for group exponent e.g. ^(x+1)
+            if let Some(&next_c) = chars.peek() {
+                if next_c == '(' {
+                    chars.next(); // consume '('
+                    // consume until ')'
+                     while let Some(inner) = chars.next() {
+                        if inner == ')' {
+                            break;
+                        }
+                        result.push(char_to_superscript(inner));
+                    }
+                    continue; // Skip the default push for '^'
+                } else if next_c == '-' || next_c.is_digit(10) {
+                     // Read immediate number
+                     while let Some(&inner) = chars.peek() {
+                         if inner.is_digit(10) || inner == '-' || inner == '.' {
+                             result.push(char_to_superscript(inner));
+                             chars.next();
+                         } else {
+                             break;
+                         }
+                     }
+                     continue;
+                }
+            }
+        } 
+        result.push(c);
+         
+    }
+    
+
+    input.replace(" ^ ", "^")
+         .replace("^0", "⁰")
+         .replace("^1", "¹")
+         .replace("^2", "²")
+         .replace("^3", "³")
+         .replace("^4", "⁴")
+         .replace("^5", "⁵")
+         .replace("^6", "⁶")
+         .replace("^7", "⁷")
+         .replace("^8", "⁸")
+         .replace("^9", "⁹")
+         .replace("^-", "⁻")
+         .replace("^(", "⁽")
+         .replace(")", "⁾") 
+
+}
+
+fn format_fancy(expr: &str) -> String {
+    let mut s = expr.replace(" ^ ", "^");
+    let mut result = String::new();
+    let mut chars = s.chars().peekable();
+    
+    while let Some(c) = chars.next() {
+        if c == '^' {
+            // formatting mode
+            let mut nesting = 0;
+            // Check for parens
+             if let Some(&next) = chars.peek() {
+                 if next == '(' {
+                     chars.next(); // eat (
+                     nesting = 1;
+                 }
+             }
+             
+             let had_paren = nesting > 0;
+             if had_paren {
+                  result.push('⁽');
+             }
+
+             while let Some(&peek) = chars.peek() {
+                 if had_paren {
+                     if peek == ')' {
+                         chars.next();
+                         result.push('⁾');
+                         break;
+                     }
+                      chars.next();
+                      result.push(char_to_superscript(peek));
+                 } else {
+                     if peek.is_alphanumeric() || peek == '.' || peek == '-' {
+                          chars.next();
+                          result.push(char_to_superscript(peek));
+                     } else {
+                         break;
+                     }
+                 }
+             }
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
+
+fn char_to_superscript(c: char) -> char {
+    match c {
+        '0' => '⁰',
+        '1' => '¹',
+        '2' => '²',
+        '3' => '³',
+        '4' => '⁴',
+        '5' => '⁵',
+        '6' => '⁶',
+        '7' => '⁷',
+        '8' => '⁸',
+        '9' => '⁹',
+        '+' => '⁺',
+        '-' => '⁻',
+        '(' => '⁽',
+        ')' => '⁾',
+        '.' => '⋅', // kinda?
+        'x' => 'ˣ',
+        'y' => 'ʸ',
+        _ => c
+    }
 }

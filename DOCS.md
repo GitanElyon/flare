@@ -30,6 +30,8 @@ dirs-first = true
 show-duplicates = false
 recent-first = true
 symbol-search-trigger = "."
+replace-calc-symbols = false
+fancy-numbers = true
 
 [window]
 visible = false          # alias: visable = true
@@ -167,6 +169,34 @@ Flare mirrors common wofi/rofi selectors. Sections map to UI elements as follows
 | `text`       | Program name span inside each row |
 
 Each section can be hidden (`visible = false`) to remove it entirely—for example, disable `outer-box` and `window` to embed Flare inside another tiling window or hide `input` to create a command-palette style overlay.
+
+## Calculator
+
+Flare includes a built-in symbolic calculator. Trigger it by typing `=` at the start of your query.
+
+### Supported Operations
+
+- **Basic Math**: `+`, `-`, `*`, `/`, `^` (power)
+- **Functions**:
+  - `sqrt(x)`: Square root
+  - `log(x)`: Logarithm (base 10)
+  - `log(x, base)`: Logarithm with specified base
+  - `ln(x)`: Natural logarithm
+  - `abs(x)`: Absolute value
+  - `sin(x)`, `cos(x)`, `tan(x)`: Trigonometric functions
+- **Calculus**:
+  - `diff(expr, var)`: Differentiate expression with respect to variable.
+    - Example: `= diff(x^2, x)` -> `2 * x`
+  - `integrate(expr, var)`: Indefinite integral.
+    - Example: `= integrate(2*x, x)` -> `x^2`
+  - `integrate(expr, var, a, b)`: Definite integral from a to b.
+    - Example: `= integrate(2*x, x, 0, 5)` -> `25`
+  - `limit(expr, var, to)`: Limit of expression as var approaches value.
+
+### Configuration
+
+- `features.replace-calc-symbols`: When enabled, replaces function names with mathematical symbols in the history view (e.g., `sqrt` -> `√`, `integrate` -> `∫`).
+- `features.fancy-numbers`: When enabled, formats exponents as superscripts (e.g., `x^2` -> `x²`).
 
 ## Error Handling
 

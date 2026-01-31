@@ -60,3 +60,52 @@ impl History {
         self.favorites.contains(&app_name.to_string())
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MathEntry {
+    pub expression: String,
+    pub result: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MathHistory {
+    pub entries: Vec<MathEntry>,
+}
+
+impl MathHistory {
+    pub fn load() -> Self {
+        if let Some(mut path) = config_dir() {
+            path.push("flare");
+            path.push("math_history.toml");
+            if path.exists() {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(history) = toml::from_str(&content) {
+                        return history;
+                    }
+                }
+            }
+        }
+        Self::default()
+    }
+
+    pub fn save(&self) {
+        if let Some(mut path) = config_dir() {
+            path.push("flare");
+            if fs::create_dir_all(&path).is_ok() {
+                path.push("math_history.toml");
+                if let Ok(content) = toml::to_string(self) {
+                    let _ = fs::write(path, content);
+                }
+            }
+        }
+    }
+
+    pub fn add(&mut self, expression: String, result: String) {
+        // Keep only last 50 entries for example, or just add to front
+        self.entries.insert(0, MathEntry { expression, result });
+        if self.entries.len() > 50 {
+            self.entries.pop();
+        }
+        self.save();
+    }
+}
