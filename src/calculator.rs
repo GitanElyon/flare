@@ -1,486 +1,390 @@
-use std::fmt;
+/// Calculator module using meval for expression evaluation and quadrature for numerical integration
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Token {
-    Number(f64),
-    Identifier(String),
-    Plus,
-    Minus,
-    Multiply,
-    Divide,
-    Power,
-    LParen,
-    RParen,
-    Comma,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Expr {
-    Number(f64),
-    Variable(String),
-    Binary(Box<Expr>, Op, Box<Expr>),
-    Call(String, Vec<Expr>),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Op {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Pow,
-}
-
+/// Evaluate a mathematical expression and return the result as a string
 pub fn evaluate(input: &str) -> Result<String, String> {
-    let tokens = tokenize(input)?;
-    if tokens.is_empty() {
-        return Ok("".to_string());
+    let input = input.trim();
+    if input.is_empty() {
+        return Ok(String::new());
     }
-    let mut parser = Parser::new(tokens);
-    let ast = parser.parse_expression()?;
-    
-    // 1. Evaluate symbolic functions (diff, integrate, etc)
-    let expanded = eval_functions(ast);
-    // 2. Simplify (constant folding, identities)
-    let simplified = simplify(expanded);
-    
-    Ok(format!("{}", simplified))
-}
 
-impl fmt::Display for Expr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Expr::Number(n) => write!(f, "{}", n),
-            Expr::Variable(s) => write!(f, "{}", s),
-            Expr::Binary(lhs, op, rhs) => {
-                let op_str = match op {
-                    Op::Add => "+",
-                    Op::Sub => "-",
-                    Op::Mul => "*",
-                    Op::Div => "/",
-                    Op::Pow => "^",
-                };
-                // Minimal parens logic could go here, for now just parens safely
-                write!(f, "({} {} {})", lhs, op_str, rhs)
-            }
-            Expr::Call(name, args) => {
-                write!(f, "{}(", name)?;
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 { write!(f, ", ")?; }
-                    write!(f, "{}", arg)?;
-                }
-                write!(f, ")")
+    // Handle special functions that meval doesn't support
+    if let Some(result) = try_special_functions(input) {
+        return result;
+    }
+
+    // Convert syntax and evaluate with meval
+    let meval_expr = convert_to_meval_syntax(input);
+    
+    match meval::eval_str(&meval_expr) {
+        Ok(result) => {
+            // Format the result nicely (remove trailing zeros for integers)
+            if result.fract() == 0.0 && result.abs() < 1e15 {
+                Ok(format!("{}", result as i64))
+            } else {
+                Ok(format!("{}", result))
             }
         }
+        Err(e) => Err(format!("Evaluation error: {}", e)),
     }
 }
 
-fn tokenize(input: &str) -> Result<Vec<Token>, String> {
-    let mut tokens = Vec::new();
-    let mut chars = input.chars().peekable();
+/// Convert our calculator syntax to meval-compatible syntax
+fn convert_to_meval_syntax(input: &str) -> String {
+    input
+        .replace("ln(", "log(")       // Natural log (meval uses log for ln)
+        .replace("ABS(", "abs(")      // Uppercase ABS
+        .replace("SIN(", "sin(")      // Uppercase trig
+        .replace("COS(", "cos(")
+        .replace("TAN(", "tan(")
+        .replace("SQRT(", "sqrt(")
+        .replace("EXP(", "exp(")
+        .replace("LOG(", "log10(")    // Uppercase LOG as log base 10
+}
 
-    while let Some(&c) = chars.peek() {
+/// Handle special functions that meval doesn't support (integrate, limit, diff)
+fn try_special_functions(input: &str) -> Option<Result<String, String>> {
+    let input_lower = input.to_lowercase();
+    
+    // Handle integrate(expr, var, a, b) - definite integral
+    if input_lower.starts_with("integrate(") {
+        return Some(handle_integrate(input));
+    }
+    
+    // Handle limit(expr, var, value)
+    if input_lower.starts_with("limit(") {
+        return Some(handle_limit(input));
+    }
+    
+    // Handle diff(expr, var) - numerical differentiation
+    if input_lower.starts_with("diff(") {
+        return Some(handle_diff(input));
+    }
+    
+    None
+}
+
+/// Parse function arguments from a string like "func(arg1, arg2, ...)"
+fn parse_function_args(input: &str) -> Result<Vec<String>, String> {
+    // Find the opening paren
+    let start = input.find('(').ok_or("Missing opening parenthesis")?;
+    let end = input.rfind(')').ok_or("Missing closing parenthesis")?;
+    
+    if end <= start {
+        return Err("Invalid function syntax".to_string());
+    }
+    
+    let args_str = &input[start + 1..end];
+    
+    // Split by commas, but respect nested parentheses
+    let mut args = Vec::new();
+    let mut current_arg = String::new();
+    let mut paren_depth = 0;
+    
+    for c in args_str.chars() {
         match c {
-            '0'..='9' | '.' => {
-                let mut num_str = String::new();
-                while let Some(&c) = chars.peek() {
-                    if c.is_digit(10) || c == '.' {
-                        num_str.push(c);
-                        chars.next();
-                    } else {
-                        break;
-                    }
-                }
-                let num = num_str.parse::<f64>().map_err(|_| "Invalid number")?;
-                tokens.push(Token::Number(num));
+            '(' => {
+                paren_depth += 1;
+                current_arg.push(c);
             }
-            'a'..='z' | 'A'..='Z' | '_' => {
-                let mut ident = String::new();
-                while let Some(&c) = chars.peek() {
-                    if c.is_alphanumeric() || c == '_' {
-                        ident.push(c);
-                        chars.next();
-                    } else {
-                        break;
-                    }
-                }
-                tokens.push(Token::Identifier(ident));
+            ')' => {
+                paren_depth -= 1;
+                current_arg.push(c);
             }
-            '+' => { tokens.push(Token::Plus); chars.next(); }
-            '-' => { tokens.push(Token::Minus); chars.next(); }
-            '*' => { tokens.push(Token::Multiply); chars.next(); }
-            '/' => { tokens.push(Token::Divide); chars.next(); }
-            '^' => { tokens.push(Token::Power); chars.next(); }
-            '(' => { tokens.push(Token::LParen); chars.next(); }
-            ')' => { tokens.push(Token::RParen); chars.next(); }
-            ',' => { tokens.push(Token::Comma); chars.next(); }
-            ws if ws.is_whitespace() => { chars.next(); }
-            _ => return Err(format!("Invalid character: {}", c)),
+            ',' if paren_depth == 0 => {
+                args.push(current_arg.trim().to_string());
+                current_arg = String::new();
+            }
+            _ => current_arg.push(c),
         }
     }
-    Ok(tokens)
+    
+    if !current_arg.trim().is_empty() {
+        args.push(current_arg.trim().to_string());
+    }
+    
+    Ok(args)
 }
 
-struct Parser {
-    tokens: std::vec::IntoIter<Token>,
-    current: Option<Token>,
-}
-
-impl Parser {
-    fn new(tokens: Vec<Token>) -> Self {
-        let mut iter = tokens.into_iter();
-        let current = iter.next();
-        Self { tokens: iter, current }
-    }
-
-    fn advance(&mut self) {
-        self.current = self.tokens.next();
-    }
-
-    fn parse_expression(&mut self) -> Result<Expr, String> {
-        self.parse_add_sub()
-    }
-
-    fn parse_add_sub(&mut self) -> Result<Expr, String> {
-        let mut left = self.parse_mul_div()?;
-        while let Some(token) = &self.current {
-            match token {
-                Token::Plus => { self.advance(); left = Expr::Binary(Box::new(left), Op::Add, Box::new(self.parse_mul_div()?)); }
-                Token::Minus => { self.advance(); left = Expr::Binary(Box::new(left), Op::Sub, Box::new(self.parse_mul_div()?)); }
-                _ => break,
-            }
-        }
-        Ok(left)
-    }
-
-    fn parse_mul_div(&mut self) -> Result<Expr, String> {
-        let mut left = self.parse_power()?;
-        while let Some(token) = &self.current {
-            match token {
-                Token::Multiply => { self.advance(); left = Expr::Binary(Box::new(left), Op::Mul, Box::new(self.parse_power()?)); }
-                Token::Divide => { self.advance(); left = Expr::Binary(Box::new(left), Op::Div, Box::new(self.parse_power()?)); }
-                _ => break,
-            }
-        }
-        Ok(left)
-    }
-
-    fn parse_power(&mut self) -> Result<Expr, String> {
-        let left = self.parse_primary()?;
-        if let Some(Token::Power) = self.current {
-             self.advance();
-             let right = self.parse_power()?; // Right associative
-             return Ok(Expr::Binary(Box::new(left), Op::Pow, Box::new(right)));
-        }
-        Ok(left)
-    }
-
-    fn parse_primary(&mut self) -> Result<Expr, String> {
-        if let Some(token) = self.current.clone() {
-            match token {
-                Token::Number(n) => { self.advance(); Ok(Expr::Number(n)) }
-                Token::Identifier(name) => {
-                    self.advance();
-                    if let Some(Token::LParen) = self.current {
-                        self.advance();
-                        let args = self.parse_args()?;
-                        if let Some(Token::RParen) = self.current {
-                            self.advance();
-                            Ok(Expr::Call(name, args))
-                        } else {
-                            Err("Expected ')'".to_string())
-                        }
-                    } else {
-                        Ok(Expr::Variable(name))
-                    }
-                }
-                Token::LParen => {
-                    self.advance();
-                    let val = self.parse_expression()?;
-                    if let Some(Token::RParen) = self.current {
-                        self.advance();
-                        Ok(val)
-                    } else {
-                        Err("Expected ')'".to_string())
-                    }
-                }
-                Token::Minus => {
-                    self.advance();
-                    let val = self.parse_power()?;
-                    // Represent unary minus as 0 - x
-                    Ok(Expr::Binary(Box::new(Expr::Number(0.0)), Op::Sub, Box::new(val)))
-                }
-                _ => Err("Unexpected token".to_string())
-            }
-        } else {
-            Err("Unexpected end of input".to_string())
-        }
-    }
-
-    fn parse_args(&mut self) -> Result<Vec<Expr>, String> {
-        let mut args = Vec::new();
-        if let Some(Token::RParen) = self.current {
-            return Ok(args);
+/// Handle integrate(expr, var, a, b) using quadrature for numerical integration
+fn handle_integrate(input: &str) -> Result<String, String> {
+    let args = parse_function_args(input)?;
+    
+    if args.len() == 4 {
+        // Definite integral: integrate(expr, var, a, b)
+        let expr = &args[0];
+        let var = &args[1];
+        let a: f64 = meval::eval_str(&convert_to_meval_syntax(&args[2]))
+            .map_err(|e| format!("Invalid lower bound: {}", e))?;
+        let b: f64 = meval::eval_str(&convert_to_meval_syntax(&args[3]))
+            .map_err(|e| format!("Invalid upper bound: {}", e))?;
+        
+        // Create the integrand function
+        let expr_for_eval = expr.clone();
+        let var_for_eval = var.clone();
+        
+        let integrand = move |x: f64| -> f64 {
+            let substituted = substitute_variable(&expr_for_eval, &var_for_eval, x);
+            let meval_expr = convert_to_meval_syntax(&substituted);
+            meval::eval_str(&meval_expr).unwrap_or(f64::NAN)
+        };
+        
+        // Use quadrature for numerical integration
+        let result = quadrature::integrate(integrand, a, b, 1e-10);
+        
+        if result.integral.is_nan() {
+            return Err("Integration failed: result is NaN".to_string());
         }
         
-        args.push(self.parse_expression()?);
-        while let Some(Token::Comma) = self.current {
-            self.advance();
-            args.push(self.parse_expression()?);
+        // Format result
+        if result.integral.fract() == 0.0 && result.integral.abs() < 1e15 {
+            Ok(format!("{}", result.integral as i64))
+        } else {
+            Ok(format!("{:.10}", result.integral).trim_end_matches('0').trim_end_matches('.').to_string())
         }
-        Ok(args)
+    } else if args.len() == 2 {
+        // Indefinite integral - return symbolic representation (not supported numerically)
+        Err("Indefinite integrals are not supported. Use integrate(expr, var, a, b) for definite integrals.".to_string())
+    } else {
+        Err("integrate requires 4 arguments: integrate(expr, var, lower, upper)".to_string())
     }
 }
 
-// --- Calculus & Functions ---
-
-fn eval_functions(expr: Expr) -> Expr {
-    match expr {
-        Expr::Call(name, args) => {
-            let processed_args: Vec<Expr> = args.into_iter().map(eval_functions).collect();
-            match name.as_str() {
-                "diff" => {
-                    if processed_args.len() == 2 {
-                         if let Expr::Variable(v) = &processed_args[1] {
-                             return differentiate(processed_args[0].clone(), v);
-                         }
-                    }
-                    Expr::Call(name, processed_args)
-                }
-                "integrate" => {
-                    if processed_args.len() == 2 {
-                        if let Expr::Variable(v) = &processed_args[1] {
-                            return integrate(processed_args[0].clone(), v);
-                        }
-                    } else if processed_args.len() == 4 {
-                         if let Expr::Variable(v) = &processed_args[1] {
-                             // Definite integral
-                             let antideriv = integrate(processed_args[0].clone(), v);
-                             // F(b) - F(a)
-                             let fb = substitute(antideriv.clone(), v, &processed_args[3]);
-                             let fa = substitute(antideriv, v, &processed_args[2]);
-                             return Expr::Binary(Box::new(fb), Op::Sub, Box::new(fa));
-                         }
-                    }
-                    Expr::Call(name, processed_args)
-                }
-                "limit" => {
-                     // limit(expr, var, to)
-                     if processed_args.len() == 3 {
-                         if let Expr::Variable(v) = &processed_args[1] {
-                             let val = &processed_args[2];
-
-                             return substitute(processed_args[0].clone(), v, val);
-                         }
-                     }
-                     Expr::Call(name, processed_args)
-                }
-                "log" => {
-                    if processed_args.len() == 2 {
-                        // log(x, base) = ln(x) / ln(base)
-                        let num = Expr::Call("ln".to_string(), vec![processed_args[0].clone()]);
-                        let den = Expr::Call("ln".to_string(), vec![processed_args[1].clone()]);
-                        return Expr::Binary(Box::new(num), Op::Div, Box::new(den));
-                    } else if processed_args.len() == 1 {
-                        if let Expr::Number(n) = processed_args[0] {
-                            return Expr::Number(n.log10());
-                        }
-                    }
-                    Expr::Call(name, processed_args)
-                }
-                // Handle basic math funcs that can be evaluated numerically if inputs are numbers
-                "sqrt" | "ln" | "sin" | "cos" | "tan" | "abs" => {
-                     if processed_args.len() == 1 {
-                         if let Expr::Number(n) = processed_args[0] {
-                             let res = match name.as_str() {
-                                 "sqrt" => n.sqrt(),
-                                 "ln" => n.ln(),
-                                 "sin" => n.sin(),
-                                 "cos" => n.cos(),
-                                 "tan" => n.tan(),
-                                 "abs" => n.abs(),
-                                 _ => n 
-                             };
-                             return Expr::Number(res);
-                         }
-                     }
-                     Expr::Call(name, processed_args)
-                }
-                _ => Expr::Call(name, processed_args)
-            }
-        }
-        Expr::Binary(lhs, op, rhs) => Expr::Binary(Box::new(eval_functions(*lhs)), op, Box::new(eval_functions(*rhs))),
-        _ => expr,
+/// Handle limit(expr, var, value) by direct substitution
+fn handle_limit(input: &str) -> Result<String, String> {
+    let args = parse_function_args(input)?;
+    
+    if args.len() != 3 {
+        return Err("limit requires 3 arguments: limit(expr, var, value)".to_string());
     }
-}
-
-fn differentiate(expr: Expr, var: &str) -> Expr {
-    match expr {
-        Expr::Number(_) => Expr::Number(0.0),
-        Expr::Variable(name) => {
-            if name == var { Expr::Number(1.0) } else { Expr::Number(0.0) }
-        }
-        Expr::Binary(lhs, op, rhs) => {
-            match op {
-                Op::Add => Expr::Binary(Box::new(differentiate(*lhs, var)), Op::Add, Box::new(differentiate(*rhs, var))),
-                Op::Sub => Expr::Binary(Box::new(differentiate(*lhs, var)), Op::Sub, Box::new(differentiate(*rhs, var))),
-                Op::Mul => {
-                    // d(u*v) = u'v + uv'
-                    let u = *lhs;
-                    let v = *rhs;
-                    let du = differentiate(u.clone(), var);
-                    let dv = differentiate(v.clone(), var);
-                    Expr::Binary(
-                        Box::new(Expr::Binary(Box::new(du), Op::Mul, Box::new(v))),
-                        Op::Add,
-                        Box::new(Expr::Binary(Box::new(u), Op::Mul, Box::new(dv)))
-                    )
-                }
-                Op::Div => {
-                    // d(u/v) = (u'v - uv') / v^2
-                    let u = *lhs;
-                    let v = *rhs;
-                    let du = differentiate(u.clone(), var);
-                    let dv = differentiate(v.clone(), var);
-                    let numerator = Expr::Binary(
-                        Box::new(Expr::Binary(Box::new(du), Op::Mul, Box::new(v.clone()))),
-                        Op::Sub,
-                        Box::new(Expr::Binary(Box::new(u), Op::Mul, Box::new(dv)))
-                    );
-                    let denominator = Expr::Binary(Box::new(v), Op::Pow, Box::new(Expr::Number(2.0)));
-                    Expr::Binary(Box::new(numerator), Op::Div, Box::new(denominator))
-                }
-                Op::Pow => {
-                    // Power rule generalized: d(u^v) = u^v * (v'*ln(u) + v*u'/u)
-                    // Simplified for u^n where n is number: n*u^(n-1) * u'
-                    let u = *lhs;
-                    let v = *rhs;
-                    if let Expr::Number(n) = v {
-                         let du = differentiate(u.clone(), var);
-                         // n * u^(n-1) * du
-                         let term1 = Expr::Binary(Box::new(Expr::Number(n)), Op::Mul, Box::new(Expr::Binary(Box::new(u), Op::Pow, Box::new(Expr::Number(n - 1.0)))));
-                         Expr::Binary(Box::new(term1), Op::Mul, Box::new(du))
+    
+    let expr = &args[0];
+    let var = &args[1];
+    let value: f64 = meval::eval_str(&convert_to_meval_syntax(&args[2]))
+        .map_err(|e| format!("Invalid limit value: {}", e))?;
+    
+    // Substitute the value into the expression
+    let substituted = substitute_variable(expr, var, value);
+    let meval_expr = convert_to_meval_syntax(&substituted);
+    
+    match meval::eval_str(&meval_expr) {
+        Ok(result) => {
+            if result.is_nan() || result.is_infinite() {
+                // Try approaching from both sides for limits
+                let h = 1e-10;
+                let left = {
+                    let sub = substitute_variable(expr, var, value - h);
+                    meval::eval_str(&convert_to_meval_syntax(&sub)).unwrap_or(f64::NAN)
+                };
+                let right = {
+                    let sub = substitute_variable(expr, var, value + h);
+                    meval::eval_str(&convert_to_meval_syntax(&sub)).unwrap_or(f64::NAN)
+                };
+                
+                if (left - right).abs() < 1e-6 {
+                    let avg = (left + right) / 2.0;
+                    if avg.fract() == 0.0 && avg.abs() < 1e15 {
+                        Ok(format!("{}", avg as i64))
                     } else {
-                        // Symbolic generalized power rule is complex, fallback
-                         Expr::Call("diff".to_string(), vec![Expr::Binary(Box::new(u), Op::Pow, Box::new(v)), Expr::Variable(var.to_string())])
+                        Ok(format!("{}", avg))
                     }
+                } else if result.is_infinite() {
+                    Ok(if result > 0.0 { "∞".to_string() } else { "-∞".to_string() })
+                } else {
+                    Err("Limit does not exist".to_string())
                 }
-            }
-        }
-        _ => Expr::Number(0.0) // Fallback
-    }
-}
-
-fn integrate(expr: Expr, var: &str) -> Expr {
-    match expr {
-        Expr::Number(n) => Expr::Binary(Box::new(Expr::Number(n)), Op::Mul, Box::new(Expr::Variable(var.to_string()))),
-        Expr::Variable(name) => {
-            if name == var {
-                // x -> x^2/2
-                Expr::Binary(
-                    Box::new(Expr::Binary(Box::new(Expr::Variable(name)), Op::Pow, Box::new(Expr::Number(2.0)))),
-                    Op::Div,
-                    Box::new(Expr::Number(2.0))
-                )
+            } else if result.fract() == 0.0 && result.abs() < 1e15 {
+                Ok(format!("{}", result as i64))
             } else {
-                // c -> c*x
-                 Expr::Binary(Box::new(Expr::Variable(name)), Op::Mul, Box::new(Expr::Variable(var.to_string())))
+                Ok(format!("{}", result))
             }
         }
-        Expr::Binary(lhs, op, rhs) => {
-            match op {
-                Op::Add => Expr::Binary(Box::new(integrate(*lhs, var)), Op::Add, Box::new(integrate(*rhs, var))),
-                Op::Sub => Expr::Binary(Box::new(integrate(*lhs, var)), Op::Sub, Box::new(integrate(*rhs, var))),
-                Op::Mul => {
-                     // Check for constant multiple: c * f(x)
-                     if let Expr::Number(n) = *lhs {
-                         return Expr::Binary(Box::new(Expr::Number(n)), Op::Mul, Box::new(integrate(*rhs, var)));
-                     }
-                      if let Expr::Number(n) = *rhs {
-                         return Expr::Binary(Box::new(integrate(*lhs, var)), Op::Mul, Box::new(Expr::Number(n)));
-                     }
-                     Expr::Call("integrate".to_string(), vec![Expr::Binary(lhs, Op::Mul, rhs), Expr::Variable(var.to_string())])
-                }
-                Op::Pow => {
-                    // x^n -> x^(n+1)/(n+1)
-                    let u = *lhs;
-                    let v = *rhs;
-                    match (u, v) {
-                        (Expr::Variable(ref name), Expr::Number(n)) if name == var => {
-                            if n == -1.0 {
-                                Expr::Call("ln".to_string(), vec![Expr::Variable(name.clone())])
-                            } else {
-                                Expr::Binary(
-                                    Box::new(Expr::Binary(Box::new(Expr::Variable(name.clone())), Op::Pow, Box::new(Expr::Number(n + 1.0)))),
-                                    Op::Div,
-                                    Box::new(Expr::Number(n + 1.0))
-                                )
-                            }
-                        }
-                        (u, v) => Expr::Call("integrate".to_string(), vec![Expr::Binary(Box::new(u), Op::Pow, Box::new(v)), Expr::Variable(var.to_string())])
-                    }
-                }
-                _ => Expr::Call("integrate".to_string(), vec![Expr::Binary(lhs, op, rhs), Expr::Variable(var.to_string())])
-            }
-        }
-        _ => Expr::Call("integrate".to_string(), vec![expr, Expr::Variable(var.to_string())])
+        Err(e) => Err(format!("Limit evaluation error: {}", e)),
     }
 }
 
-fn substitute(expr: Expr, var: &str, val: &Expr) -> Expr {
-    match expr {
-        Expr::Variable(name) => {
-            if name == var { val.clone() } else { Expr::Variable(name) }
+/// Handle diff(expr, var) or diff(expr, var, value) - numerical differentiation
+fn handle_diff(input: &str) -> Result<String, String> {
+    let args = parse_function_args(input)?;
+    
+    if args.len() < 2 || args.len() > 3 {
+        return Err("diff requires 2-3 arguments: diff(expr, var) or diff(expr, var, at_value)".to_string());
+    }
+    
+    let expr = &args[0];
+    let var = &args[1];
+    
+    if args.len() == 3 {
+        // Numerical derivative at a specific point
+        let at_value: f64 = meval::eval_str(&convert_to_meval_syntax(&args[2]))
+            .map_err(|e| format!("Invalid evaluation point: {}", e))?;
+        
+        let h = 1e-8;
+        let f_plus = {
+            let sub = substitute_variable(expr, var, at_value + h);
+            meval::eval_str(&convert_to_meval_syntax(&sub)).unwrap_or(f64::NAN)
+        };
+        let f_minus = {
+            let sub = substitute_variable(expr, var, at_value - h);
+            meval::eval_str(&convert_to_meval_syntax(&sub)).unwrap_or(f64::NAN)
+        };
+        
+        let derivative = (f_plus - f_minus) / (2.0 * h);
+        
+        if derivative.is_nan() {
+            return Err("Differentiation failed".to_string());
         }
-        Expr::Binary(lhs, op, rhs) => Expr::Binary(Box::new(substitute(*lhs, var, val)), op, Box::new(substitute(*rhs, var, val))),
-        Expr::Call(name, args) => Expr::Call(name, args.into_iter().map(|arg| substitute(arg, var, val)).collect()),
-         _ => expr
+        
+        if derivative.fract().abs() < 1e-10 && derivative.abs() < 1e15 {
+            Ok(format!("{}", derivative.round() as i64))
+        } else {
+            Ok(format!("{:.10}", derivative).trim_end_matches('0').trim_end_matches('.').to_string())
+        }
+    } else {
+        // Symbolic differentiation not supported
+        Err("Symbolic differentiation is not supported. Use diff(expr, var, at_value) for numerical derivative at a point.".to_string())
     }
 }
 
-// --- Simplification ---
-
-fn simplify(expr: Expr) -> Expr {
-    match expr {
-        Expr::Binary(lhs, op, rhs) => {
-            let s_lhs = simplify(*lhs);
-            let s_rhs = simplify(*rhs);
-            
-            match (s_lhs.clone(), op, s_rhs.clone()) {
-                // Constant folding
-                (Expr::Number(a), _, Expr::Number(b)) => {
-                    match op {
-                        Op::Add => Expr::Number(a + b),
-                        Op::Sub => Expr::Number(a - b),
-                        Op::Mul => Expr::Number(a * b),
-                        Op::Div => if b != 0.0 { Expr::Number(a / b) } else { Expr::Binary(Box::new(s_lhs), op, Box::new(s_rhs)) },
-                        Op::Pow => Expr::Number(a.powf(b)),
-                    }
+/// Substitute a variable with a numeric value in an expression string
+fn substitute_variable(expr: &str, var: &str, value: f64) -> String {
+    // We need to be careful to only replace the variable, not parts of other words
+    let mut result = String::new();
+    let mut chars = expr.chars().peekable();
+    
+    while let Some(c) = chars.next() {
+        if c.is_alphabetic() || c == '_' {
+            let mut ident = String::new();
+            ident.push(c);
+            while let Some(&next_c) = chars.peek() {
+                if next_c.is_alphanumeric() || next_c == '_' {
+                    ident.push(next_c);
+                    chars.next();
+                } else {
+                    break;
                 }
-                // Mul Identity
-                (_, Op::Mul, Expr::Number(n)) if n == 1.0 => s_lhs,
-                (Expr::Number(n), Op::Mul, _) if n == 1.0 => s_rhs,
-                (_, Op::Mul, Expr::Number(n)) if n == 0.0 => Expr::Number(0.0),
-                (Expr::Number(n), Op::Mul, _) if n == 0.0 => Expr::Number(0.0),
-                
-                // Add Identity
-                (_, Op::Add, Expr::Number(n)) if n == 0.0 => s_lhs,
-                (Expr::Number(n), Op::Add, _) if n == 0.0 => s_rhs,
-                
-                // Sub
-                (_, Op::Sub, Expr::Number(n)) if n == 0.0 => s_lhs,
-                
-                // Pow
-                (_, Op::Pow, Expr::Number(n)) if n == 1.0 => s_lhs,
-                (_, Op::Pow, Expr::Number(n)) if n == 0.0 => Expr::Number(1.0),
-
-                // Div
-                (_, Op::Div, Expr::Number(n)) if n == 1.0 => s_lhs,
-                
-                _ => Expr::Binary(Box::new(s_lhs), op, Box::new(s_rhs))
             }
+            if ident == var {
+                // Handle negative values properly with parentheses
+                if value < 0.0 {
+                    result.push_str(&format!("({})", value));
+                } else {
+                    result.push_str(&format!("{}", value));
+                }
+            } else {
+                result.push_str(&ident);
+            }
+        } else {
+            result.push(c);
         }
-        Expr::Call(name, args) => Expr::Call(name, args.into_iter().map(simplify).collect()),
-        _ => expr
+    }
+    
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_abs_lowercase() {
+        let result = evaluate("abs(-5)").unwrap();
+        assert_eq!(result, "5");
+    }
+
+    #[test]
+    fn test_abs_uppercase() {
+        let result = evaluate("ABS(-5)").unwrap();
+        assert_eq!(result, "5");
+    }
+
+    #[test]
+    fn test_abs_positive() {
+        let result = evaluate("abs(3.14)").unwrap();
+        assert_eq!(result, "3.14");
+    }
+
+    #[test]
+    fn test_limit_simple() {
+        let result = evaluate("limit(x + 2, x, 3)").unwrap();
+        assert_eq!(result, "5");
+    }
+
+    #[test]
+    fn test_limit_polynomial() {
+        let result = evaluate("limit(x^2, x, 4)").unwrap();
+        assert_eq!(result, "16");
+    }
+
+    #[test]
+    fn test_integrate_definite_constant() {
+        // Integral of 2 from 0 to 3 = 6
+        let result = evaluate("integrate(2, x, 0, 3)").unwrap();
+        let val: f64 = result.parse().unwrap();
+        assert!((val - 6.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_integrate_definite_linear() {
+        // Integral of x from 0 to 2 = 2
+        let result = evaluate("integrate(x, x, 0, 2)").unwrap();
+        let val: f64 = result.parse().unwrap();
+        assert!((val - 2.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_integrate_quadratic() {
+        // Integral of x^2 from 0 to 3 = 9
+        let result = evaluate("integrate(x^2, x, 0, 3)").unwrap();
+        let val: f64 = result.parse().unwrap();
+        assert!((val - 9.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_basic_arithmetic() {
+        assert_eq!(evaluate("2 + 3").unwrap(), "5");
+        assert_eq!(evaluate("10 - 4").unwrap(), "6");
+        assert_eq!(evaluate("3 * 4").unwrap(), "12");
+        assert_eq!(evaluate("15 / 3").unwrap(), "5");
+    }
+
+    #[test]
+    fn test_sqrt() {
+        let result = evaluate("sqrt(16)").unwrap();
+        assert_eq!(result, "4");
+    }
+
+    #[test]
+    fn test_sin_cos() {
+        let result = evaluate("sin(0)").unwrap();
+        assert_eq!(result, "0");
+        
+        let result = evaluate("cos(0)").unwrap();
+        assert_eq!(result, "1");
+    }
+
+    #[test]
+    fn test_power() {
+        assert_eq!(evaluate("2^3").unwrap(), "8");
+        assert_eq!(evaluate("3^2").unwrap(), "9");
+    }
+
+    #[test]
+    fn test_diff_at_point() {
+        // Derivative of x^2 at x=3 should be 6
+        let result = evaluate("diff(x^2, x, 3)").unwrap();
+        let val: f64 = result.parse().unwrap();
+        assert!((val - 6.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_exp() {
+        let result = evaluate("exp(0)").unwrap();
+        assert_eq!(result, "1");
+    }
+
+    #[test]
+    fn test_complex_expression() {
+        let result = evaluate("2 * sin(0) + cos(0)").unwrap();
+        assert_eq!(result, "1");
     }
 }
