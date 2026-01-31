@@ -275,13 +275,25 @@ fn eval_functions(expr: Expr) -> Expr {
                      }
                      Expr::Call(name, processed_args)
                 }
+                "log" => {
+                    if processed_args.len() == 2 {
+                        // log(x, base) = ln(x) / ln(base)
+                        let num = Expr::Call("ln".to_string(), vec![processed_args[0].clone()]);
+                        let den = Expr::Call("ln".to_string(), vec![processed_args[1].clone()]);
+                        return Expr::Binary(Box::new(num), Op::Div, Box::new(den));
+                    } else if processed_args.len() == 1 {
+                        if let Expr::Number(n) = processed_args[0] {
+                            return Expr::Number(n.log10());
+                        }
+                    }
+                    Expr::Call(name, processed_args)
+                }
                 // Handle basic math funcs that can be evaluated numerically if inputs are numbers
-                "sqrt" | "log" | "ln" | "sin" | "cos" | "tan" | "abs" => {
+                "sqrt" | "ln" | "sin" | "cos" | "tan" | "abs" => {
                      if processed_args.len() == 1 {
                          if let Expr::Number(n) = processed_args[0] {
                              let res = match name.as_str() {
                                  "sqrt" => n.sqrt(),
-                                 "log" => n.log10(),
                                  "ln" => n.ln(),
                                  "sin" => n.sin(),
                                  "cos" => n.cos(),

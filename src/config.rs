@@ -177,6 +177,8 @@ pub struct FeaturesConfig {
     pub show_duplicates: bool,
     pub recent_first: bool,
     pub symbol_search_trigger: String,
+    pub replace_calc_symbols: bool,
+    pub fancy_numbers: bool,
 }
 
 impl Default for FeaturesConfig {
@@ -189,6 +191,8 @@ impl Default for FeaturesConfig {
             show_duplicates: false,
             recent_first: true,
             symbol_search_trigger: String::from("."),
+            replace_calc_symbols: false,
+            fancy_numbers: false,
         }
     }
 }
