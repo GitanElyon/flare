@@ -156,13 +156,19 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                 })
                 .collect()
         } else if app.mode == AppMode::Calculator {
+            let mut list_items = Vec::new();
             if let Some((expr, result)) = &app.calculator_result {
                 let text = format!("{} = {}", expr, result);
                 let display_text = aligned_text(&text, text_area_width, config.text.alignment());
-                vec![ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style)]
-            } else {
-                vec![]
+                list_items.push(ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style));
             }
+            
+            for entry in &app.math_history.entries {
+                let text = format!("{} = {}", entry.expression, entry.result);
+                let display_text = aligned_text(&text, text_area_width, config.text.alignment());
+                list_items.push(ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style));
+            }
+            list_items
         } else if app.mode == AppMode::SymbolSelection {
             app.filtered_symbols
                 .iter()

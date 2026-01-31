@@ -1,5 +1,5 @@
 use crate::config::AppConfig;
-use crate::history::History;
+use crate::history::{History, MathHistory};
 use arboard::Clipboard;
 use freedesktop_desktop_entry::{Iter, default_paths, get_languages_from_env};
 use ratatui::widgets::ListState;
@@ -44,12 +44,14 @@ pub struct App {
     pub sudo_log: Vec<String>,
     pub sudo_args: Vec<String>,
     pub calculator_result: Option<(String, String)>,
+    pub math_history: MathHistory,
 }
 
 impl App {
     pub fn new(config: AppConfig, status_message: Option<String>) -> Self {
         let entries = scan_desktop_files(config.features.show_duplicates);
         let history = History::load();
+        let math_history = MathHistory::load();
 
         let mut app = Self {
             search_query: String::new(),
@@ -69,6 +71,7 @@ impl App {
             sudo_log: Vec::new(),
             sudo_args: Vec::new(),
             calculator_result: None,
+            math_history,
         };
 
         app.sort_entries();
@@ -124,17 +127,24 @@ impl App {
         if self.search_query.starts_with('=') {
             self.mode = AppMode::Calculator;
             self.filtered_entries.clear();
-            
+
             let query = self.search_query.strip_prefix('=').unwrap_or("").trim();
             if !query.is_empty() {
-                if let Ok(result) = crate::calculator::evaluate(query) {
-                    self.calculator_result = Some((query.to_string(), result.to_string()));
-                    self.list_state.select(Some(0));
-                } else {
-                     self.list_state.select(None);
+                match crate::calculator::evaluate(query) {
+                    Ok(result) => {
+                        self.calculator_result = Some((query.to_string(), result.to_string()));
+                    }
+                    Err(_) => {
+                        self.calculator_result = Some((query.to_string(), "Error".to_string()));
+                    }
                 }
+                // Ensure the solution box always shows the current equation (valid or error)
+                self.list_state.select(Some(0));
             } else {
-                self.list_state.select(None);
+                // When user types just '=', create an empty top line in the solution box
+                self.calculator_result = Some(("".to_string(), "".to_string()));
+                // Select the top (empty) line so user can press Enter or navigate into history
+                self.list_state.select(Some(0));
             }
             return;
         }
@@ -309,7 +319,13 @@ impl App {
             AppMode::AppSelection => self.filtered_entries.len(),
             AppMode::FileSelection => self.filtered_files.len(),
             AppMode::SymbolSelection => self.filtered_symbols.len(),
-            AppMode::Calculator => if self.calculator_result.is_some() { 1 } else { 0 },
+            AppMode::Calculator => {
+                let mut len = self.math_history.entries.len();
+                if self.calculator_result.is_some() {
+                    len += 1;
+                }
+                len
+            }
             _ => 0,
         };
 
@@ -331,7 +347,13 @@ impl App {
             AppMode::AppSelection => self.filtered_entries.len(),
             AppMode::FileSelection => self.filtered_files.len(),
             AppMode::SymbolSelection => self.filtered_symbols.len(),
-            AppMode::Calculator => if self.calculator_result.is_some() { 1 } else { 0 },
+            AppMode::Calculator => {
+                let mut len = self.math_history.entries.len();
+                if self.calculator_result.is_some() {
+                    len += 1;
+                }
+                len
+            }
             _ => 0,
         };
 
@@ -345,7 +367,13 @@ impl App {
             AppMode::AppSelection => self.filtered_entries.len(),
             AppMode::FileSelection => self.filtered_files.len(),
             AppMode::SymbolSelection => self.filtered_symbols.len(),
-            AppMode::Calculator => if self.calculator_result.is_some() { 1 } else { 0 },
+            AppMode::Calculator => {
+                let mut len = self.math_history.entries.len();
+                if self.calculator_result.is_some() {
+                    len += 1;
+                }
+                len
+            }
             _ => 0,
         };
 
@@ -384,6 +412,32 @@ impl App {
         if self.mode == AppMode::SudoPassword {
             self.verify_sudo_and_launch();
             return;
+        }
+
+        if self.mode == AppMode::Calculator {
+             if let Some(i) = self.list_state.selected() {
+                 let has_result = self.calculator_result.is_some();
+
+                 if has_result && i == 0 {
+                     if let Some((expr, res)) = &self.calculator_result {
+                         // Only save non-empty, non-error results
+                         if res != "Error" && !expr.is_empty() && !res.is_empty() {
+                             self.math_history.add(expr.clone(), res.clone());
+                             self.search_query = "=".to_string();
+                             self.update_filter();
+                             self.list_state.select(Some(0)); // Select first history item
+                         }
+                     }
+                 } else {
+                     let idx = if has_result { i - 1 } else { i };
+                     if let Some(entry) = self.math_history.entries.get(idx) {
+                         // Append the result to whatever is currently in the search bar
+                         self.search_query.push_str(&entry.result);
+                         self.update_filter();
+                     }
+                 }
+             }
+             return;
         }
 
         if self.mode == AppMode::SymbolSelection {
