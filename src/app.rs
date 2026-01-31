@@ -17,6 +17,7 @@ pub enum AppMode {
     FileSelection,
     SudoPassword,
     SymbolSelection,
+    Calculator,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +43,7 @@ pub struct App {
     pub pending_command: Option<(String, Vec<String>, Vec<String>)>,
     pub sudo_log: Vec<String>,
     pub sudo_args: Vec<String>,
+    pub calculator_result: Option<(String, String)>,
 }
 
 impl App {
@@ -66,6 +68,7 @@ impl App {
             pending_command: None,
             sudo_log: Vec::new(),
             sudo_args: Vec::new(),
+            calculator_result: None,
         };
 
         app.sort_entries();
@@ -116,6 +119,25 @@ impl App {
         self.filtered_files.clear();
         self.filtered_symbols.clear();
         self.sudo_args.clear();
+        self.calculator_result = None;
+
+        if self.search_query.starts_with('=') {
+            self.mode = AppMode::Calculator;
+            self.filtered_entries.clear();
+            
+            let query = self.search_query.strip_prefix('=').unwrap_or("").trim();
+            if !query.is_empty() {
+                if let Ok(result) = crate::calculator::evaluate(query) {
+                    self.calculator_result = Some((query.to_string(), result.to_string()));
+                    self.list_state.select(Some(0));
+                } else {
+                     self.list_state.select(None);
+                }
+            } else {
+                self.list_state.select(None);
+            }
+            return;
+        }
 
         if self.search_query.starts_with(&self.config.features.symbol_search_trigger) {
             self.mode = AppMode::SymbolSelection;
@@ -287,6 +309,7 @@ impl App {
             AppMode::AppSelection => self.filtered_entries.len(),
             AppMode::FileSelection => self.filtered_files.len(),
             AppMode::SymbolSelection => self.filtered_symbols.len(),
+            AppMode::Calculator => if self.calculator_result.is_some() { 1 } else { 0 },
             _ => 0,
         };
 
@@ -308,6 +331,7 @@ impl App {
             AppMode::AppSelection => self.filtered_entries.len(),
             AppMode::FileSelection => self.filtered_files.len(),
             AppMode::SymbolSelection => self.filtered_symbols.len(),
+            AppMode::Calculator => if self.calculator_result.is_some() { 1 } else { 0 },
             _ => 0,
         };
 
@@ -321,6 +345,7 @@ impl App {
             AppMode::AppSelection => self.filtered_entries.len(),
             AppMode::FileSelection => self.filtered_files.len(),
             AppMode::SymbolSelection => self.filtered_symbols.len(),
+            AppMode::Calculator => if self.calculator_result.is_some() { 1 } else { 0 },
             _ => 0,
         };
 

@@ -155,6 +155,14 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style)
                 })
                 .collect()
+        } else if app.mode == AppMode::Calculator {
+            if let Some((expr, result)) = &app.calculator_result {
+                let text = format!("{} = {}", expr, result);
+                let display_text = aligned_text(&text, text_area_width, config.text.alignment());
+                vec![ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style)]
+            } else {
+                vec![]
+            }
         } else if app.mode == AppMode::SymbolSelection {
             app.filtered_symbols
                 .iter()
@@ -195,6 +203,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                 config.inner_box.applications_title.as_deref().unwrap_or(" Applications ")
             } else if app.mode == AppMode::SymbolSelection {
                 " Symbols "
+            } else if app.mode == AppMode::Calculator {
+                " Solution "
             } else {
                 config.inner_box.directories_title.as_deref().unwrap_or(" Directories ")
             };
