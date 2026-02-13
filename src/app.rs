@@ -45,6 +45,7 @@ pub struct App {
     pub sudo_args: Vec<String>,
     pub calculator_result: Option<(String, String)>,
     pub math_history: MathHistory,
+    pub flare_ascii: String,
 }
 
 impl App {
@@ -52,6 +53,13 @@ impl App {
         let entries = scan_desktop_files(config.features.show_duplicates);
         let history = History::load();
         let math_history = MathHistory::load();
+
+        let flare_ascii = if let Some(path) = &config.flare_ascii.custom_path {
+            let expanded_path = expand_tilde(path);
+            fs::read_to_string(expanded_path).unwrap_or_else(|_| include_str!("../assets/flare.txt").to_string())
+        } else {
+            include_str!("../assets/flare.txt").to_string()
+        };
 
         let mut app = Self {
             search_query: String::new(),
@@ -72,6 +80,7 @@ impl App {
             sudo_args: Vec::new(),
             calculator_result: None,
             math_history,
+            flare_ascii,
         };
 
         app.sort_entries();
@@ -109,6 +118,13 @@ impl App {
                 if let Some(entry) = self.filtered_entries.get(i).cloned() {
                     self.history.toggle_favorite(&entry.name);
                     self.sort_entries();
+                    self.update_filter();
+                }
+            }
+        } else if self.mode == AppMode::SymbolSelection {
+            if let Some(i) = self.list_state.selected() {
+                if let Some((name, _)) = self.filtered_symbols.get(i).cloned() {
+                    self.history.toggle_favorite_symbol(name);
                     self.update_filter();
                 }
             }
@@ -160,7 +176,16 @@ impl App {
                 .to_lowercase();
 
             if query.is_empty() {
-                self.filtered_symbols = crate::symbols::SYMBOLS.iter().cloned().collect();
+                let mut symbols: Vec<(&'static str, &'static str)> = crate::symbols::SYMBOLS.iter().cloned().collect();
+                symbols.sort_by(|(name_a, _), (name_b, _)| {
+                    let fav_a = self.history.is_favorite_symbol(name_a);
+                    let fav_b = self.history.is_favorite_symbol(name_b);
+                    if fav_a != fav_b {
+                        return fav_b.cmp(&fav_a);
+                    }
+                    name_a.cmp(name_b)
+                });
+                self.filtered_symbols = symbols;
             } else {
                 let mut matches: Vec<(i64, (&'static str, &'static str))> = crate::symbols::SYMBOLS
                     .iter()
@@ -169,7 +194,14 @@ impl App {
                     })
                     .collect();
 
-                matches.sort_by(|a, b| b.0.cmp(&a.0));
+                matches.sort_by(|a, b| {
+                    let fav_a = self.history.is_favorite_symbol(a.1.0);
+                    let fav_b = self.history.is_favorite_symbol(b.1.0);
+                    if fav_a != fav_b {
+                        return fav_b.cmp(&fav_a);
+                    }
+                    b.0.cmp(&a.0)
+                });
 
                 self.filtered_symbols = matches.into_iter().map(|(_, item)| item).collect();
             }
@@ -791,12 +823,13 @@ fn fuzzy_score(query: &str, target: &str) -> Option<i64> {
     }
 
     if pattern_idx == query_chars.len() {
-        score -= (target_chars.len() as i64 - query_chars.len() as i64);
+        score -= target_chars.len() as i64 - query_chars.len() as i64;
         return Some(score);
     }
     None
 }
 
+#[allow(dead_code)]
 fn fuzzy_match(query: &str, target: &str) -> bool {
     fuzzy_score(query, target).is_some()
 }

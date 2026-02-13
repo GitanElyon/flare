@@ -28,6 +28,14 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     }
 
     let mut constraints = Vec::new();
+    
+    let flare_lines = app.flare_ascii.lines().count() as u16;
+
+    if config.flare_ascii.section.is_visible() {
+        let p = &config.flare_ascii.padding;
+        constraints.push(Constraint::Length(flare_lines + p.top + p.bottom)); 
+    }
+
     if config.input.is_visible() {
         constraints.push(Constraint::Length(3));
     }
@@ -42,6 +50,56 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         .split(working_area);
 
     let mut chunk_index = 0;
+
+    if config.flare_ascii.section.is_visible() {
+        let chunk = chunks[chunk_index];
+        chunk_index += 1;
+        
+        let p = &config.flare_ascii.padding;
+        let inner_area = Rect {
+            x: chunk.x + p.left,
+            y: chunk.y + p.top,
+            width: chunk.width.saturating_sub(p.left + p.right),
+            height: chunk.height.saturating_sub(p.top + p.bottom),
+        };
+
+        let mut widget = if config.flare_ascii.gradient && !config.flare_ascii.gradient_colors.is_empty() {
+             let colors: Vec<Color> = config.flare_ascii.gradient_colors.iter()
+                 .filter_map(|s| crate::config::parse_color(s))
+                 .collect();
+             
+             let lines: Vec<Line> = app.flare_ascii.lines().enumerate().map(|(i, line)| {
+                 let color = if colors.is_empty() {
+                     Color::White
+                 } else if colors.len() == 1 {
+                     colors[0]
+                 } else {
+                     // Simple linear interpolation between all colors provided
+                     let total_lines = flare_lines.max(1) as f32;
+                     let progress = i as f32 / total_lines;
+                     let segment_count = (colors.len() - 1) as f32;
+                     let segment_progress = progress * segment_count;
+                     let segment_index = segment_progress.floor() as usize;
+                     let segment_index = segment_index.min(colors.len() - 2);
+                     let factor = segment_progress - segment_index as f32;
+                     
+                     interpolate_color(colors[segment_index], colors[segment_index + 1], factor)
+                 };
+                 Line::from(Span::styled(line, Style::default().fg(color)))
+             }).collect();
+             Paragraph::new(lines)
+        } else {
+             let mut p_widget = Paragraph::new(app.flare_ascii.as_str());
+             if let Some(color) = config.flare_ascii.section.fg.as_deref().and_then(crate::config::parse_color) {
+                  p_widget = p_widget.style(Style::default().fg(color));
+             }
+             p_widget
+        };
+
+        widget = widget.alignment(config.flare_ascii.alignment.unwrap_or(crate::config::TextAlignment::Center).into());
+        f.render_widget(widget, inner_area);
+    }
+
     let search_chunk = if config.input.is_visible() {
         let chunk = chunks[chunk_index];
         chunk_index += 1;
@@ -87,27 +145,17 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         }
     }
 
-    let mut scroll_area = list_chunk;
-    if config.scroll.is_visible() {
-        let block = config.scroll.block(general, "");
-        let inner = block.inner(list_chunk);
-        f.render_widget(block, list_chunk);
-        scroll_area = inner;
-    }
+    let scroll_area = list_chunk;
 
-    let padding = if config.inner_box.section.is_visible() {
-        config.inner_box.section.border_offset(general) * 2
+    let padding = if config.results.section.is_visible() {
+        config.results.section.border_offset(general) * 2
     } else {
         0
     };
     let mut text_area_width = scroll_area.width.saturating_sub(padding);
     text_area_width = text_area_width.saturating_sub(highlight_symbol_width(config));
 
-    let entry_style = if config.entry.is_visible() {
-        config.entry.style()
-    } else {
-        Style::default()
-    };
+    let entry_style = Style::default();
     let entry_selected_visible = config.entry_selected.is_visible();
     let highlight_style = if entry_selected_visible {
         config.entry_selected.style()
@@ -116,9 +164,9 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     };
 
     if app.mode == AppMode::SudoPassword {
-        let block = if config.inner_box.section.is_visible() {
-            let title = config.inner_box.authentication_title.as_deref().unwrap_or(" Authentication ");
-            config.inner_box.section.block_with_title(general, title)
+        let block = if config.results.section.is_visible() {
+            let title = config.results.authentication_title.as_deref().unwrap_or(" Authentication ");
+            config.results.section.block_with_title(general, title)
         } else {
             Block::default().borders(Borders::ALL).title(" Authentication ")
         };
@@ -192,7 +240,13 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     if !config.text.is_visible() {
                         return ListItem::new(Span::raw(""));
                     }
-                    let text = format!("{} {}", symbol, name);
+
+                    let is_fav = app.history.is_favorite_symbol(name);
+                    let fav_symbol_cfg = config.general.favorite_symbol.as_deref().unwrap_or("★ ");
+                    let empty_prefix = " ".repeat(fav_symbol_cfg.chars().count());
+                    let prefix = if is_fav { fav_symbol_cfg } else { &empty_prefix };
+
+                    let text = format!("{}{} {}", prefix, symbol, name);
                     let display_text = aligned_text(&text, text_area_width, config.text.alignment());
                     ListItem::new(Span::styled(display_text, config.text.style())).style(entry_style)
                 })
@@ -220,17 +274,17 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             .highlight_style(highlight_style)
             .highlight_symbol(highlight_symbol);
 
-        if config.inner_box.section.is_visible() {
+        if config.results.section.is_visible() {
             let title = if app.mode == AppMode::AppSelection {
-                config.inner_box.applications_title.as_deref().unwrap_or(" Applications ")
+                config.results.applications_title.as_deref().unwrap_or(" Applications ")
             } else if app.mode == AppMode::SymbolSelection {
                 " Symbols "
             } else if app.mode == AppMode::Calculator {
                 " Solution "
             } else {
-                config.inner_box.directories_title.as_deref().unwrap_or(" Directories ")
+                config.results.directories_title.as_deref().unwrap_or(" Directories ")
             };
-            list = list.block(config.inner_box.section.block_with_title(general, title));
+            list = list.block(config.results.section.block_with_title(general, title));
         }
 
         f.render_stateful_widget(list, scroll_area, &mut app.list_state);
@@ -281,6 +335,7 @@ fn replace_symbols(expr: &str) -> String {
         .replace("pi", "π")
 }
 
+#[allow(dead_code)]
 fn to_superscript(input: &str) -> String {
     let mut result = String::new();
     let mut chars = input.chars().peekable();
@@ -336,7 +391,7 @@ fn to_superscript(input: &str) -> String {
 }
 
 fn format_fancy(expr: &str) -> String {
-    let mut s = expr.replace(" ^ ", "^");
+    let s = expr.replace(" ^ ", "^");
     let mut result = String::new();
     let mut chars = s.chars().peekable();
     
@@ -403,5 +458,39 @@ fn char_to_superscript(c: char) -> char {
         'x' => 'ˣ',
         'y' => 'ʸ',
         _ => c
+    }
+}
+
+fn interpolate_color(c1: Color, c2: Color, factor: f32) -> Color {
+    let (r1, g1, b1) = color_to_rgb(c1);
+    let (r2, g2, b2) = color_to_rgb(c2);
+    
+    let r = (r1 as f32 + (r2 as f32 - r1 as f32) * factor) as u8;
+    let g = (g1 as f32 + (g2 as f32 - g1 as f32) * factor) as u8;
+    let b = (b1 as f32 + (b2 as f32 - b1 as f32) * factor) as u8;
+    
+    Color::Rgb(r, g, b)
+}
+
+fn color_to_rgb(c: Color) -> (u8, u8, u8) {
+    match c {
+        Color::Rgb(r, g, b) => (r, g, b),
+        Color::Black => (0, 0, 0),
+        Color::Red => (170, 0, 0),
+        Color::Green => (0, 170, 0),
+        Color::Yellow => (170, 85, 0),
+        Color::Blue => (0, 0, 170),
+        Color::Magenta => (170, 0, 170),
+        Color::Cyan => (0, 170, 170),
+        Color::White => (170, 170, 170),
+        Color::Gray => (85, 85, 85),
+        Color::DarkGray => (85, 85, 85),
+        Color::LightRed => (255, 85, 85),
+        Color::LightGreen => (85, 255, 85),
+        Color::LightYellow => (255, 255, 85),
+        Color::LightBlue => (85, 85, 255),
+        Color::LightMagenta => (255, 85, 255),
+        Color::LightCyan => (85, 255, 255),
+        _ => (255, 255, 255),
     }
 }

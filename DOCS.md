@@ -49,11 +49,20 @@ title = " Search "
 title-alignment = "center"
 border-color = "#cba6f7"
 
-[scroll]
-visible = false
-border-color = "#585b70"
+[flare-ascii]
+visible = true
+gradient = true
+gradient-colors = ["#6464ff", "#c864ff"] # List of hex colors for the gradient
+alignment = "center"
+custom-path = "/home/user/.config/flare/flare.txt" # Optional: path to a custom ASCII art file
 
-[inner-box]
+[flare-ascii.padding]
+top = 0
+bottom = 0
+left = 0
+right = 0
+
+[results]
 visible = true
 title = " Applications "
 applications-title = " Applications "
@@ -61,10 +70,6 @@ directories-title = " Directories "
 authentication-title = " Authentication "
 title-alignment = "center"
 border-color = "#89b4fa"
-
-[entry]
-visible = false
-bg = "#1e1e2e"
 
 [entry-selected]
 visible = true
@@ -93,9 +98,14 @@ Additional section-specific options:
 
 - `general.highlight-symbol`: string drawn in front of the selected entry. Set to an empty string (or disable `entry-selected.visible`) to hide it.
 - `text.alignment`: aligns entry labels within the list (`left`, `center`, `right`).
-- `inner-box.applications-title`: Title shown when browsing applications. Defaults to " Applications ".
-- `inner-box.directories-title`: Title shown when browsing files/directories. Defaults to " Directories ".
-- `inner-box.authentication-title`: Title shown when prompting for sudo password. Defaults to " Authentication ".
+- `flare-ascii.gradient`: Boolean to enable a color gradient for the ASCII art.
+- `flare-ascii.gradient-colors`: A list of hex color strings (e.g. `["#ff0000", "#00ff00"]`) to use for the gradient. If multiple colors are provided, Flare will interpolate between them vertically.
+- `flare-ascii.alignment`: Alignment of the ASCII art (`left`, `center`, `right`).
+- `flare-ascii.custom-path`: Absolute path to a file containing custom ASCII art to display.
+- `flare-ascii.padding`: Sub-section with `top`, `bottom`, `left`, `right` (integers) to add space around the art.
+- `results.applications-title`: Title shown when browsing applications. Defaults to " Applications ".
+- `results.directories-title`: Title shown when browsing files/directories. Defaults to " Directories ".
+- `results.authentication-title`: Title shown when prompting for sudo password. Defaults to " Authentication ".
 - `general.clipboard-command`: Optional shell command to use for copying symbols. If not set, Flare uses an internal clipboard library. Example: `"wl-copy"` or `"xclip -selection clipboard"`.
 
 ## NixOS Installation
@@ -133,7 +143,7 @@ The `[general]` block controls defaults for the rest of the UI:
 - `rounded-corners`: switches every visible border between plain and rounded corners. Individual sections can opt out via `rounded = false`.
 - `show-borders`: quick way to remove all borders. Override per section with `borders = true/false` when you want one box framed but another bare.
 - `highlight-symbol`: string prepended to the focused entry. Multi-character strings work fine—emoji too, if your font supports them.
-- `favorite-symbol`: string displayed next to favorite applications. Defaults to "★ ".
+- `favorite-symbol`: string displayed next to favorite applications and Nerd Font symbols. Defaults to "★ ".
 - `favorite-key`: keybinding to toggle favorite status. Supports modifiers (ctrl, alt, shift) and keys (a-z, f1-f12, enter, etc.). Defaults to "alt+f".
 
 ### Features Section
@@ -161,10 +171,9 @@ Flare mirrors common wofi/rofi selectors. Sections map to UI elements as follows
 |--------------|------------|
 | `window`     | Whole terminal window background |
 | `outer-box`  | Frame that wraps the UI |
+| `flare-ascii` | ASCII art header |
 | `input`      | Search field area |
-| `scroll`     | Scrollable viewport containing the entry list |
-| `inner-box`  | Box around the list itself |
-| `entry`      | Individual list rows |
+| `results`     | Box around the list itself |
 | `entry-selected` | Highlight style for the active row |
 | `text`       | Program name span inside each row |
 

@@ -18,10 +18,9 @@ pub struct AppConfig {
     pub features: FeaturesConfig,
     pub window: SectionConfig,
     pub outer_box: SectionConfig,
+    pub flare_ascii: FlareAsciiConfig,
     pub input: SectionConfig,
-    pub scroll: SectionConfig,
-    pub inner_box: InnerBoxConfig,
-    pub entry: SectionConfig,
+    pub results: ResultsConfig,
     pub entry_selected: SectionConfig,
     pub text: TextConfig,
 }
@@ -83,23 +82,22 @@ impl Default for AppConfig {
             features: FeaturesConfig::default(),
             window: SectionConfig {
                 bg: Some(String::from("#000000")),
+                visible: Some(false),
                 ..SectionConfig::default()
             },
             outer_box: SectionConfig {
                 title: Some(String::from(" Flare ")),
                 border_color: Some(String::from("#cdd6f4")),
+                visible: Some(false),
                 ..SectionConfig::default()
             },
+            flare_ascii: FlareAsciiConfig::default(),
             input: SectionConfig {
                 title: Some(String::from(" Search ")),
                 border_color: Some(String::from("#cba6f7")),
                 ..SectionConfig::default()
             },
-            scroll: SectionConfig {
-                border_color: Some(String::from("#585b70")),
-                ..SectionConfig::default()
-            },
-            inner_box: InnerBoxConfig {
+            results: ResultsConfig {
                 section: SectionConfig {
                     border_color: Some(String::from("#cba6f7")),
                     ..SectionConfig::default()
@@ -107,10 +105,6 @@ impl Default for AppConfig {
                 applications_title: None,
                 directories_title: None,
                 authentication_title: None,
-            },
-            entry: SectionConfig {
-                fg: Some(String::from("#cdd6f4")),
-                ..SectionConfig::default()
             },
             entry_selected: SectionConfig {
                 fg: Some(String::from("#1e1e2e")),
@@ -121,9 +115,10 @@ impl Default for AppConfig {
         }
     }
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
-pub struct InnerBoxConfig {
+pub struct ResultsConfig {
     #[serde(flatten)]
     pub section: SectionConfig,
 
@@ -132,7 +127,7 @@ pub struct InnerBoxConfig {
     pub authentication_title: Option<String>,
 }
 
-impl Default for InnerBoxConfig {
+impl Default for ResultsConfig {
     fn default() -> Self {
         Self {
             section: SectionConfig::default(),
@@ -141,6 +136,43 @@ impl Default for InnerBoxConfig {
             authentication_title: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct FlareAsciiConfig {
+    #[serde(flatten)]
+    pub section: SectionConfig,
+    pub gradient: bool,
+    pub gradient_colors: Vec<String>,
+    pub alignment: Option<TextAlignment>,
+    pub padding: PaddingConfig,
+    pub custom_path: Option<String>,
+}
+
+impl Default for FlareAsciiConfig {
+    fn default() -> Self {
+        Self {
+            section: SectionConfig {
+               visible: Some(true),
+                ..SectionConfig::default()
+            },
+            gradient: true,
+            gradient_colors: vec![String::from("#6464ff"), String::from("#c864ff")],
+            alignment: Some(TextAlignment::Center),
+            padding: PaddingConfig::default(),
+            custom_path: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct PaddingConfig {
+    pub top: u16,
+    pub bottom: u16,
+    pub left: u16,
+    pub right: u16,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
