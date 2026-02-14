@@ -77,42 +77,7 @@ impl AppConfig {
 
 impl Default for AppConfig {
     fn default() -> Self {
-        Self {
-            general: GeneralConfig::default(),
-            features: FeaturesConfig::default(),
-            window: SectionConfig {
-                bg: Some(String::from("#000000")),
-                visible: Some(false),
-                ..SectionConfig::default()
-            },
-            outer_box: SectionConfig {
-                title: Some(String::from(" Flare ")),
-                border_color: Some(String::from("#cdd6f4")),
-                visible: Some(false),
-                ..SectionConfig::default()
-            },
-            flare_ascii: FlareAsciiConfig::default(),
-            input: SectionConfig {
-                title: Some(String::from(" Search ")),
-                border_color: Some(String::from("#cba6f7")),
-                ..SectionConfig::default()
-            },
-            results: ResultsConfig {
-                section: SectionConfig {
-                    border_color: Some(String::from("#cba6f7")),
-                    ..SectionConfig::default()
-                },
-                applications_title: None,
-                directories_title: None,
-                authentication_title: None,
-            },
-            entry_selected: SectionConfig {
-                fg: Some(String::from("#1e1e2e")),
-                bg: Some(String::from("#cba6f7")),
-                ..SectionConfig::default()
-            },
-            text: TextConfig::default(),
-        }
+        include!("../assets/defaults.rs")
     }
 }
 

@@ -14,8 +14,69 @@ use crossterm::{
 };
 use ratatui::prelude::*;
 use std::io;
+use std::env;
+use std::fs;
+use dirs::config_dir;
 
 fn main() -> Result<()> {
+    let args: Vec<String> = env::args().collect();
+    if args.len() > 1 {
+        match args[1].as_str() {
+            "--gen-config" => {
+                if let Some(mut path) = config_dir() {
+                    path.push("flare");
+                    if fs::create_dir_all(&path).is_err() {
+                        eprintln!("Error: Unable to create configuration directory: {:?}", path);
+                        std::process::exit(1);
+                    }
+                    path.push("config.toml");
+
+                    if path.exists() {
+                        eprintln!("Error: Configuration file already exists at {:?}", path);
+                        std::process::exit(1);
+                    }
+
+                    // We generate the TOML directly from the default struct 
+                    // which is now defined in assets/defaults.rs
+                    let default_config_struct = AppConfig::default();
+                    match toml::to_string_pretty(&default_config_struct) {
+                        Ok(serialized) => {
+                            match fs::write(&path, serialized) {
+                                Ok(_) => {
+                                    println!("Successfully generated default configuration at {:?}", path);
+                                    std::process::exit(0);
+                                }
+                                Err(e) => {
+                                    eprintln!("Error writing configuration file: {}", e);
+                                    std::process::exit(1);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Error serializing default configuration: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    eprintln!("Error: Could not determine configuration directory.");
+                    std::process::exit(1);
+                }
+            }
+            "-h" | "--help" => {
+                println!("Flare - An Application Launcher");
+                println!("Usage: flare [OPTIONS]");
+                println!("");
+                println!("Options:");
+                println!("  --gen-config    Generate a default config file at ~/.config/flare/config.toml");
+                println!("                  (Fails if file already exists)");
+                println!("  -h, --help      Print this help message");
+                std::process::exit(0);
+            }
+            _ => {
+            }
+        }
+    }
+
     let load_result = AppConfig::load();
     if let Some(warning) = &load_result.warning {
         eprintln!("{warning}");
