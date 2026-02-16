@@ -28,6 +28,7 @@ pub struct AppEntry {
 
 pub struct App {
     pub search_query: String,
+    pub search_cursor: usize,
     pub entries: Vec<AppEntry>,
     pub filtered_entries: Vec<AppEntry>,
     pub list_state: ListState,
@@ -40,6 +41,7 @@ pub struct App {
     pub filtered_symbols: Vec<(&'static str, &'static str)>,
     pub history: History,
     pub sudo_password: String,
+    pub sudo_password_cursor: usize,
     pub pending_command: Option<(String, Vec<String>, Vec<String>)>,
     pub sudo_log: Vec<String>,
     pub sudo_args: Vec<String>,
@@ -63,6 +65,7 @@ impl App {
 
         let mut app = Self {
             search_query: String::new(),
+            search_cursor: 0,
             filtered_entries: entries.clone(),
             entries,
             list_state: ListState::default().with_selected(Some(0)),
@@ -75,6 +78,7 @@ impl App {
             filtered_symbols: Vec::new(),
             history,
             sudo_password: String::new(),
+            sudo_password_cursor: 0,
             pending_command: None,
             sudo_log: Vec::new(),
             sudo_args: Vec::new(),
@@ -86,6 +90,101 @@ impl App {
         app.sort_entries();
         app.filtered_entries = app.entries.clone();
         app
+    }
+
+    fn char_count(input: &str) -> usize {
+        input.chars().count()
+    }
+
+    fn byte_index_at_char(input: &str, char_idx: usize) -> usize {
+        if char_idx == 0 {
+            return 0;
+        }
+
+        input
+            .char_indices()
+            .nth(char_idx)
+            .map(|(idx, _)| idx)
+            .unwrap_or_else(|| input.len())
+    }
+
+    pub fn move_search_cursor_left(&mut self) {
+        if self.search_cursor > 0 {
+            self.search_cursor -= 1;
+        }
+    }
+
+    pub fn move_search_cursor_right(&mut self) {
+        let len = Self::char_count(&self.search_query);
+        if self.search_cursor < len {
+            self.search_cursor += 1;
+        }
+    }
+
+    pub fn insert_search_char(&mut self, ch: char) {
+        let byte_idx = Self::byte_index_at_char(&self.search_query, self.search_cursor);
+        self.search_query.insert(byte_idx, ch);
+        self.search_cursor += 1;
+        self.update_filter();
+    }
+
+    pub fn insert_search_text(&mut self, text: &str) {
+        let byte_idx = Self::byte_index_at_char(&self.search_query, self.search_cursor);
+        self.search_query.insert_str(byte_idx, text);
+        self.search_cursor += Self::char_count(text);
+        self.update_filter();
+    }
+
+    pub fn backspace_search_char(&mut self) {
+        if self.search_cursor == 0 {
+            return;
+        }
+
+        let end = Self::byte_index_at_char(&self.search_query, self.search_cursor);
+        let start = Self::byte_index_at_char(&self.search_query, self.search_cursor - 1);
+        self.search_query.replace_range(start..end, "");
+        self.search_cursor -= 1;
+        self.update_filter();
+    }
+
+    pub fn set_search_query(&mut self, query: String) {
+        self.search_query = query;
+        self.search_cursor = Self::char_count(&self.search_query);
+    }
+
+    pub fn move_sudo_cursor_left(&mut self) {
+        if self.sudo_password_cursor > 0 {
+            self.sudo_password_cursor -= 1;
+        }
+    }
+
+    pub fn move_sudo_cursor_right(&mut self) {
+        let len = Self::char_count(&self.sudo_password);
+        if self.sudo_password_cursor < len {
+            self.sudo_password_cursor += 1;
+        }
+    }
+
+    pub fn insert_sudo_char(&mut self, ch: char) {
+        let byte_idx = Self::byte_index_at_char(&self.sudo_password, self.sudo_password_cursor);
+        self.sudo_password.insert(byte_idx, ch);
+        self.sudo_password_cursor += 1;
+    }
+
+    pub fn backspace_sudo_char(&mut self) {
+        if self.sudo_password_cursor == 0 {
+            return;
+        }
+
+        let end = Self::byte_index_at_char(&self.sudo_password, self.sudo_password_cursor);
+        let start = Self::byte_index_at_char(&self.sudo_password, self.sudo_password_cursor - 1);
+        self.sudo_password.replace_range(start..end, "");
+        self.sudo_password_cursor -= 1;
+    }
+
+    pub fn clear_sudo_password(&mut self) {
+        self.sudo_password.clear();
+        self.sudo_password_cursor = 0;
     }
 
     pub fn sort_entries(&mut self) {
@@ -430,9 +529,9 @@ impl App {
 
                     if let Some(last_space_idx) = self.search_query.rfind(' ') {
                         let (prefix, _) = self.search_query.split_at(last_space_idx + 1);
-                        self.search_query = format!("{}{}", prefix, new_path);
+                        self.set_search_query(format!("{}{}", prefix, new_path));
                     } else {
-                        self.search_query = new_path;
+                        self.set_search_query(new_path);
                     }
                     self.update_filter();
                 }
@@ -455,7 +554,7 @@ impl App {
                          // Only save non-empty, non-error results
                          if res != "Error" && !expr.is_empty() && !res.is_empty() {
                              self.math_history.add(expr.clone(), res.clone());
-                             self.search_query = "=".to_string();
+                             self.set_search_query("=".to_string());
                              self.update_filter();
                              self.list_state.select(Some(0)); // Select first history item
                          }
@@ -463,9 +562,9 @@ impl App {
                  } else {
                      let idx = if has_result { i - 1 } else { i };
                      if let Some(entry) = self.math_history.entries.get(idx) {
+                         let res = entry.result.clone();
                          // Append the result to whatever is currently in the search bar
-                         self.search_query.push_str(&entry.result);
-                         self.update_filter();
+                         self.insert_search_text(&res);
                      }
                  }
              }
@@ -580,7 +679,7 @@ impl App {
 
                     if self.search_query.starts_with("sudo") {
                         self.mode = AppMode::SudoPassword;
-                        self.sudo_password.clear();
+                        self.clear_sudo_password();
                         self.sudo_log = vec!["Password: ".to_string()];
                         self.pending_command = Some((cmd.clone(), final_args, self.sudo_args.clone()));
                         return;
@@ -645,7 +744,7 @@ impl App {
                         if let Err(_) = writeln!(stdin, "{}", self.sudo_password) {
                              self.sudo_log.push("Failed to write password".to_string());
                              self.sudo_log.push("Password: ".to_string());
-                             self.sudo_password.clear();
+                                self.clear_sudo_password();
                              return;
                         }
                     }
@@ -688,20 +787,20 @@ impl App {
                             } else {
                                 self.sudo_log.push("Sorry, try again.".to_string());
                                 self.sudo_log.push("Password: ".to_string());
-                                self.sudo_password.clear();
+                                self.clear_sudo_password();
                             }
                         }
                         Err(e) => {
                              self.sudo_log.push(format!("Sudo check failed: {}", e));
                              self.sudo_log.push("Password: ".to_string());
-                             self.sudo_password.clear();
+                             self.clear_sudo_password();
                         }
                     }
                 }
                 Err(e) => {
                     self.sudo_log.push(format!("Failed to run sudo: {}", e));
                     self.sudo_log.push("Password: ".to_string());
-                    self.sudo_password.clear();
+                    self.clear_sudo_password();
                 }
             }
         }

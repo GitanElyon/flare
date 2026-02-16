@@ -22,6 +22,8 @@ show-borders = true
 highlight-symbol = "» "
 favorite-symbol = "★ "
 favorite-key = "alt+f"
+jump-to-top-key = "alt+up"
+jump-to-bottom-key = "alt+down"
 clipboard-command = "wl-copy" # Optional: command to use for copying symbols (e.g., "wl-copy", "xclip -selection clipboard")
 
 [features]
@@ -162,6 +164,13 @@ The `[general]` block controls defaults for the rest of the UI:
 - `highlight-symbol`: string prepended to the focused entry. Multi-character strings work fine—emoji too, if your font supports them.
 - `favorite-symbol`: string displayed next to favorite applications and Nerd Font symbols. Defaults to "★ ".
 - `favorite-key`: keybinding to toggle favorite status. Supports modifiers (ctrl, alt, shift) and keys (a-z, f1-f12, enter, etc.). Defaults to "alt+f".
+- `jump-to-top-key`: keybinding to jump directly to the first result row. Defaults to `alt+up`.
+- `jump-to-bottom-key`: keybinding to jump directly to the last result row. Defaults to `alt+down`.
+
+Input editing notes:
+- `Left` / `Right` now move the text cursor in the input field so you can edit in-place (including calculator expressions).
+- `Up` / `Down` still move through results one row at a time.
+- Use `jump-to-top-key` / `jump-to-bottom-key` for instant top/bottom jumps.
 
 ### Features Section
 

@@ -188,6 +188,8 @@ pub struct GeneralConfig {
     pub highlight_symbol: Option<String>,
     pub favorite_symbol: Option<String>,
     pub favorite_key: Option<String>,
+    pub jump_to_top_key: Option<String>,
+    pub jump_to_bottom_key: Option<String>,
     pub clipboard_command: Option<String>,
 }
 
@@ -199,6 +201,8 @@ impl Default for GeneralConfig {
             highlight_symbol: Some(String::from(">> ")),
             favorite_symbol: Some(String::from("★ ")),
             favorite_key: Some(String::from("alt+f")),
+            jump_to_top_key: Some(String::from("alt+up")),
+            jump_to_bottom_key: Some(String::from("alt+down")),
             clipboard_command: None,
         }
     }

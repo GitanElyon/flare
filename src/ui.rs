@@ -157,7 +157,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         apply_section_border_colors(f, chunk, &config.input, general);
 
         let cursor_offset = config.input.border_offset(general);
-        let cursor_x = (chunk.x + cursor_offset + app.search_query.len() as u16)
+        let cursor_x = (chunk.x + cursor_offset + app.search_cursor as u16)
             .min(chunk.x + chunk.width.saturating_sub(1));
         let cursor_y = (chunk.y + cursor_offset).min(chunk.y + chunk.height.saturating_sub(1));
         f.set_cursor_position((cursor_x, cursor_y));
@@ -264,7 +264,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                         &selected_fg_colors,
                         &selected_bg_colors,
                         config.entry.gradient_angle,
-                        config.entry_selected.basic.gradient_angle,
+                        config.entry_selected.gradient_angle,
                         full_row_width,
                         normal_entry_style,
                         entry_style,
@@ -302,7 +302,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     &selected_fg_colors,
                     &selected_bg_colors,
                     config.entry.gradient_angle,
-                    config.entry_selected.basic.gradient_angle,
+                    config.entry_selected.gradient_angle,
                     full_row_width,
                     normal_entry_style,
                     entry_style,
@@ -338,7 +338,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     &selected_fg_colors,
                     &selected_bg_colors,
                     config.entry.gradient_angle,
-                    config.entry_selected.basic.gradient_angle,
+                    config.entry_selected.gradient_angle,
                     full_row_width,
                     normal_entry_style,
                     entry_style,
@@ -381,7 +381,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                         &selected_fg_colors,
                         &selected_bg_colors,
                         config.entry.gradient_angle,
-                        config.entry_selected.basic.gradient_angle,
+                        config.entry_selected.gradient_angle,
                         full_row_width,
                         normal_entry_style,
                         entry_style,
@@ -416,7 +416,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                         &selected_fg_colors,
                         &selected_bg_colors,
                         config.entry.gradient_angle,
-                        config.entry_selected.basic.gradient_angle,
+                        config.entry_selected.gradient_angle,
                         full_row_width,
                         normal_entry_style,
                         entry_style,
