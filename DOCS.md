@@ -11,6 +11,8 @@ Flare reads its configuration from `~/.config/flare/config.toml`. The file is cr
 
 You can also copy configs between machines—Flare only cares that the TOML structure matches the sections described below.
 
+> Tip: color fields accept either a single string (`"#cba6f7"`) or an array (`["#6464ff", "#c864ff"]`). Arrays with 2+ colors become gradients automatically.
+
 ## File Overview
 
 ```toml
@@ -41,18 +43,19 @@ bg = "#0f0f17ff"        # rrggbbAA (alpha optional)
 visible = false
 title = " Flare "
 title-alignment = "center"
-border-color = "#cdd6f4"
+border-color = ["#cdd6f4"]
 
 [input]
 visible = true
 title = " Search "
 title-alignment = "center"
-border-color = "#cba6f7"
+border-color = ["#6464ff", "#c864ff"] # 1 color = solid border, 2+ colors = gradient border
+border-angle = 90
 
 [flare-ascii]
 visible = true
-gradient = true
 gradient-colors = ["#6464ff", "#c864ff"] # List of hex colors for the gradient
+gradient-angle = 90 # 0-360 degrees (0 = left->right, 90 = top->bottom)
 alignment = "center"
 custom-path = "/home/user/.config/flare/flare.txt" # Optional: path to a custom ASCII art file
 
@@ -62,19 +65,29 @@ bottom = 0
 left = 0
 right = 0
 
-[results]
+[list]
 visible = true
 title = " Applications "
-applications-title = " Applications "
-directories-title = " Directories "
-authentication-title = " Authentication "
+apps-title = " Applications "
+files-title = " Directories "
+sudo-title = " Authentication "
 title-alignment = "center"
-border-color = "#89b4fa"
+border-color = ["#6464ff", "#c864ff"]
+border-angle = 90
+
+# Legacy alias: [results] still works
+
+[entry]
+fg = ["#f2f5f7"] # non-selected text color (use 2+ colors for gradient text)
+bg = []           # optional non-selected background (use 2+ colors for gradient fill)
+gradient-angle = 90
 
 [entry-selected]
 visible = true
-fg = "#151525"
-bg = "#6d7694"
+fg = ["#151525"]
+bg = ["#6464ff", "#c864ff"] # selected row highlight fill
+gradient-angle = 90
+full-width-highlight = true
 
 [text]
 visible = true
@@ -87,8 +100,10 @@ Every section shares a common set of optional keys:
 | Key               | Type               | Description |
 |-------------------|--------------------|-------------|
 | `visible` / `visable` | bool          | Toggle rendering for that box. Useful for minimalist layouts or when embedding inside another launcher frame. |
-| `fg` / `bg`       | color string       | Foreground/background color. Accepts named colors (`blue`, `light-red`, …) or hex values `#RRGGBB` and `#RRGGBBAA`. The extra `AA` channel controls opacity; Flare blends it against the terminal background. |
-| `border-color`    | color string       | Border color with the same syntax as `fg/bg`. |
+| `fg` / `bg`       | color string or color array | Foreground/background colors. A single value gives a solid color; 2+ values create a gradient (where supported). Accepts named colors (`blue`, `light-red`, …) or hex `#RRGGBB` and `#RRGGBBAA`. |
+| `gradient-angle`  | integer (`0..360`) | Angle used for `fg/bg` gradients. `0` = left→right, `90` = top→bottom, `180` = right→left, `270` = bottom→top. |
+| `border-color`    | color string or color array | Border colors. One color draws a solid border; multiple colors automatically draw a gradient border. |
+| `border-angle`    | integer (`0..360`) | Angle of border gradient travel when `border-color` has multiple colors. |
 | `borders`         | bool               | Override the global `general.show-borders` toggle for an individual section. |
 | `rounded`         | bool               | Override the global `general.rounded-corners` toggle. |
 | `title`           | string             | Optional text shown in the block header. |
@@ -98,14 +113,16 @@ Additional section-specific options:
 
 - `general.highlight-symbol`: string drawn in front of the selected entry. Set to an empty string (or disable `entry-selected.visible`) to hide it.
 - `text.alignment`: aligns entry labels within the list (`left`, `center`, `right`).
-- `flare-ascii.gradient`: Boolean to enable a color gradient for the ASCII art.
-- `flare-ascii.gradient-colors`: A list of hex color strings (e.g. `["#ff0000", "#00ff00"]`) to use for the gradient. If multiple colors are provided, Flare will interpolate between them vertically.
+- `entry.fg` / `entry.bg`: Colors for non-selected rows. Arrays allow gradients. These override `text.fg`/`text.bg` for normal rows.
+- `flare-ascii.gradient-colors`: A list of color strings (e.g. `["#ff0000", "#00ff00"]`) to use for the ASCII color. One color gives solid text; multiple colors interpolate along `gradient-angle`.
+- `flare-ascii.gradient-angle`: Angle of the ASCII gradient in degrees (`0..360`).
 - `flare-ascii.alignment`: Alignment of the ASCII art (`left`, `center`, `right`).
 - `flare-ascii.custom-path`: Absolute path to a file containing custom ASCII art to display.
 - `flare-ascii.padding`: Sub-section with `top`, `bottom`, `left`, `right` (integers) to add space around the art.
-- `results.applications-title`: Title shown when browsing applications. Defaults to " Applications ".
-- `results.directories-title`: Title shown when browsing files/directories. Defaults to " Directories ".
-- `results.authentication-title`: Title shown when prompting for sudo password. Defaults to " Authentication ".
+- `entry-selected.full-width-highlight`: When `true`, selected-row highlighting fills the full width of the list box.
+- `list.apps-title`: Title shown when browsing applications. Defaults to " Applications ".
+- `list.files-title`: Title shown when browsing files/directories. Defaults to " Directories ".
+- `list.sudo-title`: Title shown when prompting for sudo password. Defaults to " Authentication ".
 - `general.clipboard-command`: Optional shell command to use for copying symbols. If not set, Flare uses an internal clipboard library. Example: `"wl-copy"` or `"xclip -selection clipboard"`.
 
 ## NixOS Installation
@@ -173,7 +190,8 @@ Flare mirrors common wofi/rofi selectors. Sections map to UI elements as follows
 | `outer-box`  | Frame that wraps the UI |
 | `flare-ascii` | ASCII art header |
 | `input`      | Search field area |
-| `results`     | Box around the list itself |
+| `list`     | Box around the list itself |
+| `entry`       | Non-selected rows in the results list |
 | `entry-selected` | Highlight style for the active row |
 | `text`       | Program name span inside each row |
 
