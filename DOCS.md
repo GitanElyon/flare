@@ -33,9 +33,16 @@ enable-auto-complete = true
 dirs-first = true
 show-duplicates = false
 recent-first = true
+calculator-search-trigger = "="
 symbol-search-trigger = "."
+help-search-trigger = "-"
 replace-calc-symbols = false
 fancy-numbers = true
+
+[extensions]
+# By default this is empty, so Flare runs as an app launcher only.
+# Add any of: calculator, symbols, files, sudo, help
+enabled = ["calculator", "symbols", "files", "sudo", "help"]
 
 [window]
 visible = false          # alias: visable = true
@@ -176,12 +183,29 @@ Input editing notes:
 
 The `[features]` block allows you to toggle specific functionalities:
 
-- `enable-file-explorer`: Enables file browsing. When typing a path starting with `~/` or `/`, Flare switches to file-only mode. Also enables path completion for launch arguments.
 - `enable-launch-args`: Enables passing arguments to applications (e.g., `nvim file.txt`).
 - `enable-auto-complete`: Enables tab auto-completion for file paths.
 - `dirs-first`: When listing files, show directories before files. Defaults to `true`.
 - `show-duplicates`: Shows duplicate entries when the same application appears in multiple locations (e.g., both `/usr/share/applications` and `~/.local/share/applications`). Set to `true` to show all instances, or `false` to show only the first occurrence. Defaults to `false`.
 - `recent-first`: Sorts applications by usage frequency. Defaults to `true`.
+- `calculator-search-trigger`: Trigger for calculator mode. Defaults to `=`.
+- `symbol-search-trigger`: Trigger for symbol picker mode. Defaults to `.`.
+- `help-search-trigger`: Trigger for command/help list. Defaults to `-`.
+
+### Extensions Section
+
+The `[extensions]` block controls which plugin modules are active.
+
+- `enabled`: List of extension IDs. If empty, Flare behaves as an app launcher only.
+
+Supported IDs:
+- `calculator`
+- `symbols`
+- `files`
+- `sudo`
+- `help`
+
+Aliases are accepted for compatibility (`calc`, `icon-picker`, `directory-browser`, etc.).
 
 ### Color Syntax
 

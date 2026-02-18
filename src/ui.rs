@@ -147,6 +147,10 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     if let Some(chunk) = search_chunk {
         let title = if app.mode == AppMode::SymbolSelection {
             " Symbols "
+        } else if app.mode == AppMode::Calculator {
+            " Calculator "
+        } else if app.mode == AppMode::HelpSelection {
+            " Commands "
         } else {
             " Search "
         };
@@ -388,6 +392,43 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     )
                 })
                 .collect()
+        } else if app.mode == AppMode::HelpSelection {
+            app.filtered_help
+                .iter()
+                .enumerate()
+                .map(|(idx, command)| {
+                    if !config.text.is_visible() {
+                        return ListItem::new(Span::raw(""));
+                    }
+
+                    let text = format!("{:10}  {:10}  {}", command.trigger, command.name, command.description);
+                    let mut display_text = aligned_text(&text, text_area_width, config.text.alignment());
+
+                    if entry_selected_visible {
+                        let prefix = if Some(idx) == selected_idx {
+                            highlight_symbol.to_string()
+                        } else {
+                            " ".repeat(highlight_symbol.chars().count())
+                        };
+                        display_text = format!("{}{}", prefix, display_text);
+                    }
+
+                    build_list_item(
+                        &display_text,
+                        config,
+                        Some(idx) == selected_idx,
+                        &entry_fg_colors,
+                        &entry_bg_colors,
+                        &selected_fg_colors,
+                        &selected_bg_colors,
+                        config.entry.gradient_angle,
+                        config.entry_selected.gradient_angle,
+                        full_row_width,
+                        normal_entry_style,
+                        entry_style,
+                    )
+                })
+                .collect()
         } else {
             app.filtered_files
                 .iter()
@@ -434,6 +475,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                 " Symbols "
             } else if app.mode == AppMode::Calculator {
                 " Solution "
+            } else if app.mode == AppMode::HelpSelection {
+                " Commands "
             } else {
                 config.list.files_title.as_deref().unwrap_or(" Directories ")
             };

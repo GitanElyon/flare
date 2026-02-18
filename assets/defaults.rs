@@ -16,9 +16,14 @@ AppConfig {
         dirs_first: true,
         show_duplicates: false,
         recent_first: true,
+        calculator_search_trigger: String::from("="),
         symbol_search_trigger: String::from("."),
+        help_search_trigger: String::from("-"),
         replace_calc_symbols: false,
         fancy_numbers: false,
+    },
+    extensions: ExtensionsConfig {
+        enabled: vec![],
     },
     window: SectionConfig {
         title: None,
@@ -109,8 +114,8 @@ AppConfig {
     },
     entry_selected: SectionConfig {
         title: None,
-        fg: vec![String::from("#151525")],
-        bg: vec![String::from("#424242")],
+        fg: vec![String::from("#111111")],
+        bg: vec![String::from("#888888")],
         border_color: vec![],
         border_angle: 90,
         gradient_angle: 0,

@@ -1,6 +1,9 @@
 use crate::config::AppConfig;
+use crate::extensions::{
+    ExtensionRegistry, ExtensionResult,
+    help::HelpCommand,
+};
 use crate::history::{History, MathHistory};
-use arboard::Clipboard;
 use freedesktop_desktop_entry::{Iter, default_paths, get_languages_from_env};
 use ratatui::widgets::ListState;
 use std::{
@@ -18,6 +21,7 @@ pub enum AppMode {
     SudoPassword,
     SymbolSelection,
     Calculator,
+    HelpSelection,
 }
 
 #[derive(Debug, Clone)]
@@ -39,6 +43,7 @@ pub struct App {
     pub mode: AppMode,
     pub filtered_files: Vec<String>,
     pub filtered_symbols: Vec<(&'static str, &'static str)>,
+    pub filtered_help: Vec<HelpCommand>,
     pub history: History,
     pub sudo_password: String,
     pub sudo_password_cursor: usize,
@@ -48,6 +53,7 @@ pub struct App {
     pub calculator_result: Option<(String, String)>,
     pub math_history: MathHistory,
     pub flare_ascii: String,
+    pub extension_registry: ExtensionRegistry,
 }
 
 impl App {
@@ -55,9 +61,10 @@ impl App {
         let entries = scan_desktop_files(config.features.show_duplicates);
         let history = History::load();
         let math_history = MathHistory::load();
+        let extension_registry = ExtensionRegistry::new(&config);
 
         let flare_ascii = if let Some(path) = &config.flare_ascii.custom_path {
-            let expanded_path = expand_tilde(path);
+            let expanded_path = crate::extensions::files::expand_tilde(path);
             fs::read_to_string(expanded_path).unwrap_or_else(|_| include_str!("../assets/flare.txt").to_string())
         } else {
             include_str!("../assets/flare.txt").to_string()
@@ -76,6 +83,7 @@ impl App {
             mode: AppMode::AppSelection,
             filtered_files: Vec::new(),
             filtered_symbols: Vec::new(),
+            filtered_help: Vec::new(),
             history,
             sudo_password: String::new(),
             sudo_password_cursor: 0,
@@ -85,6 +93,7 @@ impl App {
             calculator_result: None,
             math_history,
             flare_ascii,
+            extension_registry,
         };
 
         app.sort_entries();
@@ -236,139 +245,75 @@ impl App {
         self.mode = AppMode::AppSelection;
         self.filtered_files.clear();
         self.filtered_symbols.clear();
+        self.filtered_help.clear();
         self.sudo_args.clear();
         self.calculator_result = None;
 
-        if self.search_query.starts_with('=') {
-            self.mode = AppMode::Calculator;
-            self.filtered_entries.clear();
-
-            let query = self.search_query.strip_prefix('=').unwrap_or("").trim();
-            if !query.is_empty() {
-                match crate::calculator::evaluate(query) {
-                    Ok(result) => {
-                        self.calculator_result = Some((query.to_string(), result.to_string()));
-                    }
-                    Err(_) => {
-                        self.calculator_result = Some((query.to_string(), "Error".to_string()));
-                    }
-                }
-                // Ensure the solution box always shows the current equation (valid or error)
-                self.list_state.select(Some(0));
-            } else {
-                // When user types just '=', create an empty top line in the solution box
-                self.calculator_result = Some(("".to_string(), "".to_string()));
-                // Select the top (empty) line so user can press Enter or navigate into history
-                self.list_state.select(Some(0));
-            }
-            return;
-        }
-
-        if self.search_query.starts_with(&self.config.features.symbol_search_trigger) {
-            self.mode = AppMode::SymbolSelection;
-            self.filtered_entries.clear();
-            
-            let query = self.search_query
-                .strip_prefix(&self.config.features.symbol_search_trigger)
-                .unwrap_or("")
-                .trim()
-                .to_lowercase();
-
-            if query.is_empty() {
-                let mut symbols: Vec<(&'static str, &'static str)> = crate::symbols::SYMBOLS.iter().cloned().collect();
-                symbols.sort_by(|(name_a, _), (name_b, _)| {
-                    let fav_a = self.history.is_favorite_symbol(name_a);
-                    let fav_b = self.history.is_favorite_symbol(name_b);
-                    if fav_a != fav_b {
-                        return fav_b.cmp(&fav_a);
-                    }
-                    name_a.cmp(name_b)
-                });
-                self.filtered_symbols = symbols;
-            } else {
-                let mut matches: Vec<(i64, (&'static str, &'static str))> = crate::symbols::SYMBOLS
-                    .iter()
-                    .filter_map(|(name, val)| {
-                        fuzzy_score(&query, name).map(|score| (score, (*name, *val)))
-                    })
-                    .collect();
-
-                matches.sort_by(|a, b| {
-                    let fav_a = self.history.is_favorite_symbol(a.1.0);
-                    let fav_b = self.history.is_favorite_symbol(b.1.0);
-                    if fav_a != fav_b {
-                        return fav_b.cmp(&fav_a);
-                    }
-                    b.0.cmp(&a.0)
-                });
-
-                self.filtered_symbols = matches.into_iter().map(|(_, item)| item).collect();
-            }
-            // Ensure selection is valid
-            if self.filtered_symbols.is_empty() {
-                self.list_state.select(None);
-            } else {
-                self.list_state.select(Some(0));
-            }
-            return;
-        }
-
-        let query_slice = if self.search_query.starts_with("sudo") {
-            let parts: Vec<&str> = self.search_query.split_whitespace().collect();
-            let mut idx = 1; // skip "sudo"
-            let mut is_sudo = false;
-
-            if parts.first() == Some(&"sudo") {
-                is_sudo = true;
-                while idx < parts.len() {
-                    let part = parts[idx];
-                    if part.starts_with('-') {
-                        self.sudo_args.push(part.to_string());
-                        // check for flags that take arguments
-                        // -C fd, -g group, -h host, -p prompt, -r role, -t type, -U user, -u user
-                        // also handle bundled flags like -Ab (no arg) vs -u user
-                        // simplified check: if it's exactly one of these flags, take next arg
-                        if ["-C", "-g", "-h", "-p", "-r", "-t", "-U", "-u"].contains(&part) {
-                            if idx + 1 < parts.len() {
-                                idx += 1;
-                                self.sudo_args.push(parts[idx].to_string());
-                            }
+        // Check extensions from the registry first
+        for ext in &self.extension_registry.extensions {
+            if ext.should_handle(&self.search_query, &self.config) {
+                match ext.process(&self.search_query, &self.config, &self.extension_registry) {
+                    ExtensionResult::Help(commands) => {
+                        self.mode = AppMode::HelpSelection;
+                        self.filtered_entries.clear();
+                        self.filtered_help = commands;
+                        if self.filtered_help.is_empty() {
+                            self.list_state.select(None);
+                        } else {
+                            self.list_state.select(Some(0));
                         }
-                    } else {
-                        break;
+                        return;
                     }
-                    idx += 1;
+                    ExtensionResult::Single { query, result } => {
+                        self.mode = AppMode::Calculator;
+                        self.filtered_entries.clear();
+                        self.calculator_result = Some((query, result));
+                        self.list_state.select(Some(0));
+                        return;
+                    }
+                    ExtensionResult::List(_) => {
+                        // Symbols is a bit special because it needs History and sorting
+                        // so we handle the heavy lifting back in the app for now
+                        self.mode = AppMode::SymbolSelection;
+                        self.filtered_entries.clear();
+                        self.filtered_symbols = crate::extensions::symbols::filter_symbols(
+                            &self.search_query,
+                            &self.config,
+                            &self.history,
+                        );
+                        if self.filtered_symbols.is_empty() {
+                            self.list_state.select(None);
+                        } else {
+                            self.list_state.select(Some(0));
+                        }
+                        return;
+                    }
+                    ExtensionResult::Files(files) => {
+                        self.mode = AppMode::FileSelection;
+                        self.filtered_files = files;
+                        self.filtered_entries.clear();
+                        // Files don't return early here because we might also want to search apps
+                    }
+                    ExtensionResult::None => {}
                 }
             }
+        }
 
-            if is_sudo {
-                // reconstruct the query from the remaining parts
-                // we need to find where the command starts in the original string to preserve spaces if possible,
-                // or just join the parts. Joining parts is safer for now.
-                if idx < parts.len() {
-                    // this is a bit inefficient but works
-                    parts[idx..].join(" ")
-                } else {
-                    String::new()
-                }
-            } else {
-                self.search_query.clone()
+        let query_slice = {
+            let mut q = self.search_query.clone();
+            if self.config.extensions.is_enabled("sudo") {
+                let parsed = crate::extensions::sudo::parse_query(&self.search_query);
+                self.sudo_args = parsed.sudo_args;
+                q = parsed.query;
             }
-        } else {
-            self.search_query.clone()
+            q
         };
         
         let query_slice_str = query_slice.trim();
 
-        if self.config.features.enable_file_explorer
-            && (query_slice_str.starts_with('~') || query_slice_str.starts_with('/'))
-        {
-            self.mode = AppMode::FileSelection;
-            self.filtered_files = list_files(query_slice_str, self.config.features.dirs_first);
-            self.filtered_entries.clear();
-        } else if query_slice_str.is_empty() {
+        if self.mode != AppMode::FileSelection && query_slice_str.is_empty() {
             self.filtered_entries = self.entries.clone();
-        } else {
+        } else if self.mode != AppMode::FileSelection {
             let query = query_slice_str.to_lowercase();
             let mut matches: Vec<(i64, AppEntry)> = self
                 .entries
@@ -410,8 +355,11 @@ impl App {
                         if self.config.features.enable_launch_args {
                             let args: Vec<String> = words[i..].iter().map(|s| s.to_string()).collect();
                             if let Some(last_arg) = args.last() {
-                                if self.config.features.enable_file_explorer && !last_arg.starts_with('-') {
-                                    let files = list_files(last_arg, self.config.features.dirs_first);
+                                if self.config.extensions.is_enabled("files") && !last_arg.starts_with('-') {
+                                    let files = crate::extensions::files::list_files(
+                                        last_arg,
+                                        self.config.features.dirs_first,
+                                    );
                                     if !files.is_empty() {
                                         self.filtered_files = files;
                                         self.mode = AppMode::FileSelection;
@@ -432,10 +380,19 @@ impl App {
             }
         }
         
-        let count = if self.mode == AppMode::AppSelection {
-            self.filtered_entries.len()
-        } else {
-            self.filtered_files.len()
+        let count = match self.mode {
+            AppMode::AppSelection => self.filtered_entries.len(),
+            AppMode::FileSelection => self.filtered_files.len(),
+            AppMode::SymbolSelection => self.filtered_symbols.len(),
+            AppMode::Calculator => {
+                let mut len = self.math_history.entries.len();
+                if self.calculator_result.is_some() {
+                    len += 1;
+                }
+                len
+            }
+            AppMode::HelpSelection => self.filtered_help.len(),
+            _ => 0,
         };
 
         if count == 0 {
@@ -457,6 +414,7 @@ impl App {
                 }
                 len
             }
+            AppMode::HelpSelection => self.filtered_help.len(),
             _ => 0,
         };
 
@@ -485,6 +443,7 @@ impl App {
                 }
                 len
             }
+            AppMode::HelpSelection => self.filtered_help.len(),
             _ => 0,
         };
 
@@ -505,6 +464,7 @@ impl App {
                 }
                 len
             }
+            AppMode::HelpSelection => self.filtered_help.len(),
             _ => 0,
         };
 
@@ -517,12 +477,15 @@ impl App {
         if !self.config.features.enable_auto_complete {
             return;
         }
+        if !self.config.extensions.is_enabled("files") {
+            return;
+        }
         if self.mode == AppMode::FileSelection {
             if let Some(i) = self.list_state.selected() {
                 if let Some(selected_file) = self.filtered_files.get(i) {
                     let mut new_path = selected_file.clone();
                     
-                    let expanded_path = expand_tilde(&new_path);
+                    let expanded_path = crate::extensions::files::expand_tilde(&new_path);
                     if Path::new(&expanded_path).is_dir() {
                         new_path.push('/');
                     }
@@ -542,6 +505,21 @@ impl App {
     pub fn launch_selected(&mut self) {
         if self.mode == AppMode::SudoPassword {
             self.verify_sudo_and_launch();
+            return;
+        }
+
+        if self.mode == AppMode::HelpSelection {
+            if let Some(i) = self.list_state.selected() {
+                if let Some(command) = self.filtered_help.get(i).cloned() {
+                    let query = match command.name.to_lowercase().as_str() {
+                        "files" => "~/".to_string(),
+                        "sudo" => "sudo ".to_string(),
+                        _ => command.trigger,
+                    };
+                    self.set_search_query(query);
+                    self.update_filter();
+                }
+            }
             return;
         }
 
@@ -574,40 +552,8 @@ impl App {
         if self.mode == AppMode::SymbolSelection {
             if let Some(i) = self.list_state.selected() {
                 if let Some((_, symbol)) = self.filtered_symbols.get(i) {
-                    let mut copied = false;
-                    if let Some(cmd) = &self.config.general.clipboard_command {
-                        let parts: Vec<&str> = cmd.split_whitespace().collect();
-                        if let Some((prog, args)) = parts.split_first() {
-                            let child = Command::new(prog)
-                                .args(args)
-                                .stdin(Stdio::piped())
-                                .spawn();
-                            
-                            if let Ok(mut child) = child {
-                                use std::io::Write;
-                                if let Some(mut stdin) = child.stdin.take() {
-                                    let _ = stdin.write_all(symbol.as_bytes());
-                                }
-                                let _ = child.wait();
-                                copied = true;
-                                self.should_quit = true;
-                            } else {
-                                self.status_message = Some(format!("Failed to run clipboard command: {}", cmd));
-                            }
-                        }
-                    }
-
-                    if !copied {
-                        if let Ok(mut clipboard) = Clipboard::new() {
-                            if let Err(e) = clipboard.set_text(symbol.to_string()) {
-                                self.status_message = Some(format!("Clipboard error: {}", e));
-                            } else {
-                                self.should_quit = true;
-                            }
-                        } else {
-                            self.status_message = Some("Failed to initialize clipboard".to_string());
-                        }
-                    }
+                    crate::extensions::symbols::copy_to_clipboard_with_notify(symbol);
+                    self.should_quit = true;
                 }
             }
             return;
@@ -646,7 +592,7 @@ impl App {
 
                             let expanded_launch_args: Vec<String> = current_launch_args
                                 .iter()
-                                .map(|arg| expand_tilde(arg))
+                                .map(|arg| crate::extensions::files::expand_tilde(arg))
                                 .collect();
 
                             let mut replaced = false;
@@ -677,7 +623,7 @@ impl App {
                         }
                     }
 
-                    if self.search_query.starts_with("sudo") {
+                    if self.config.extensions.is_enabled("sudo") && self.search_query.starts_with("sudo") {
                         self.mode = AppMode::SudoPassword;
                         self.clear_sudo_password();
                         self.sudo_log = vec!["Password: ".to_string()];
@@ -807,7 +753,7 @@ impl App {
     }
 
     fn open_file(&mut self, path_str: &str) {
-        let expanded = expand_tilde(path_str);
+        let expanded = crate::extensions::files::expand_tilde(path_str);
         let path = Path::new(&expanded);
 
         let is_executable = if let Ok(metadata) = fs::metadata(path) {
@@ -881,7 +827,7 @@ fn scan_desktop_files(show_duplicates: bool) -> Vec<AppEntry> {
 }
 
 
-fn fuzzy_score(query: &str, target: &str) -> Option<i64> {
+pub(crate) fn fuzzy_score(query: &str, target: &str) -> Option<i64> {
     let query_chars: Vec<char> = query.chars().collect();
     let target_chars: Vec<char> = target.chars().collect();
 
@@ -933,83 +879,3 @@ fn fuzzy_match(query: &str, target: &str) -> bool {
     fuzzy_score(query, target).is_some()
 }
 
-fn expand_tilde(path: &str) -> String {
-    if path == "~" {
-        if let Some(home) = dirs::home_dir() {
-            return home.to_string_lossy().to_string();
-        }
-    }
-    if let Some(stripped) = path.strip_prefix("~/") {
-        if let Some(home) = dirs::home_dir() {
-            return format!("{}/{}", home.to_string_lossy(), stripped);
-        }
-    }
-    path.to_string()
-}
-
-fn list_files(query_path: &str, dirs_first: bool) -> Vec<String> {
-    let expanded = expand_tilde(query_path);
-    let path = Path::new(&expanded);
-
-    let (dir, file_prefix) = if query_path.ends_with('/') {
-        (path, "")
-    } else {
-        (
-            path.parent().unwrap_or(Path::new("")),
-            path.file_name().and_then(|s| s.to_str()).unwrap_or(""),
-        )
-    };
-
-    let search_dir = if dir.as_os_str().is_empty() {
-        if query_path.starts_with('/') {
-            Path::new("/")
-        } else {
-            Path::new(".")
-        }
-    } else {
-        dir
-    };
-
-    let mut entries_vec: Vec<(String, bool, i64)> = Vec::new();
-    if let Ok(entries) = fs::read_dir(search_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
-            let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
-
-            if name.starts_with('.') && !file_prefix.starts_with('.') {
-                continue;
-            }
-            if let Some(score) = fuzzy_score(file_prefix, name) {
-                let mut path_str = path.to_string_lossy().to_string();
-                if query_path.starts_with('~') {
-                    if let Some(home) = dirs::home_dir() {
-                        let home_str = home.to_string_lossy();
-                        if path_str.starts_with(home_str.as_ref()) {
-                            path_str = format!("~{}", &path_str[home_str.len()..]);
-                        }
-                    }
-                }
-                entries_vec.push((path_str, is_dir, score));
-            }
-        }
-    }
-
-    if dirs_first {
-        entries_vec.sort_by(
-            |(a_path, a_is_dir, a_score), (b_path, b_is_dir, b_score)| {
-                if *a_is_dir != *b_is_dir {
-                    b_is_dir.cmp(a_is_dir)
-                } else {
-                    b_score.cmp(a_score).then_with(|| a_path.cmp(b_path))
-                }
-            },
-        );
-    } else {
-        entries_vec.sort_by(|(a_path, _, a_score), (b_path, _, b_score)| {
-            b_score.cmp(a_score).then_with(|| a_path.cmp(b_path))
-        });
-    }
-
-    entries_vec.into_iter().map(|(p, _, _)| p).collect()
-}

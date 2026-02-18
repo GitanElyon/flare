@@ -1,23 +1,70 @@
-/// Calculator module using meval for expression evaluation and quadrature for numerical integration
+use crate::config::AppConfig;
+use super::api::{ExtensionMetadata, FlareExtension, ExtensionResult};
 
-/// Evaluate a mathematical expression and return the result as a string
+pub struct Calculator;
+
+impl FlareExtension for Calculator {
+    fn metadata(&self, config: &AppConfig) -> ExtensionMetadata {
+        metadata(config)
+    }
+
+    fn should_handle(&self, query: &str, config: &AppConfig) -> bool {
+        should_handle(query, config)
+    }
+
+    fn process(&self, query: &str, config: &AppConfig, _registry: &crate::extensions::ExtensionRegistry) -> ExtensionResult {
+        if let Some((q, r)) = evaluate_from_query(query, config) {
+            ExtensionResult::Single { query: q, result: r }
+        } else {
+            ExtensionResult::None
+        }
+    }
+}
+
+pub fn metadata(config: &AppConfig) -> ExtensionMetadata {
+    ExtensionMetadata {
+        name: "Calculator".to_string(),
+        description: "Evaluate mathematical expressions".to_string(),
+        trigger: trigger(config).to_string(),
+    }
+}
+
+pub fn trigger(config: &AppConfig) -> &str {
+    &config.features.calculator_search_trigger
+}
+
+pub fn should_handle(query: &str, config: &AppConfig) -> bool {
+    query.starts_with(trigger(config))
+}
+
+pub fn evaluate_from_query(query: &str, config: &AppConfig) -> Option<(String, String)> {
+    let trigger = trigger(config);
+    let raw_query = query.strip_prefix(trigger).unwrap_or("").trim();
+
+    if raw_query.is_empty() {
+        return Some((String::new(), String::new()));
+    }
+
+    match evaluate(raw_query) {
+        Ok(result) => Some((raw_query.to_string(), result.to_string())),
+        Err(_) => Some((raw_query.to_string(), "Error".to_string())),
+    }
+}
+
 pub fn evaluate(input: &str) -> Result<String, String> {
     let input = input.trim();
     if input.is_empty() {
         return Ok(String::new());
     }
 
-    // Handle special functions that meval doesn't support
     if let Some(result) = try_special_functions(input) {
         return result;
     }
 
-    // Convert syntax and evaluate with meval
     let meval_expr = convert_to_meval_syntax(input);
     
     match meval::eval_str(&meval_expr) {
         Ok(result) => {
-            // Format the result nicely (remove trailing zeros for integers)
             if result.fract() == 0.0 && result.abs() < 1e15 {
                 Ok(format!("{}", result as i64))
             } else {
@@ -28,34 +75,29 @@ pub fn evaluate(input: &str) -> Result<String, String> {
     }
 }
 
-/// Convert our calculator syntax to meval-compatible syntax
 fn convert_to_meval_syntax(input: &str) -> String {
     input
-        .replace("ln(", "log(")       // Natural log (meval uses log for ln)
-        .replace("ABS(", "abs(")      // Uppercase ABS
-        .replace("SIN(", "sin(")      // Uppercase trig
+        .replace("ln(", "log(")
+        .replace("ABS(", "abs(")
+        .replace("SIN(", "sin(")
         .replace("COS(", "cos(")
         .replace("TAN(", "tan(")
         .replace("SQRT(", "sqrt(")
         .replace("EXP(", "exp(")
-        .replace("LOG(", "log10(")    // Uppercase LOG as log base 10
+        .replace("LOG(", "log10(")
 }
 
-/// Handle special functions that meval doesn't support (integrate, limit, diff)
 fn try_special_functions(input: &str) -> Option<Result<String, String>> {
     let input_lower = input.to_lowercase();
     
-    // Handle integrate(expr, var, a, b) - definite integral
     if input_lower.starts_with("integrate(") {
         return Some(handle_integrate(input));
     }
     
-    // Handle limit(expr, var, value)
     if input_lower.starts_with("limit(") {
         return Some(handle_limit(input));
     }
     
-    // Handle diff(expr, var) - numerical differentiation
     if input_lower.starts_with("diff(") {
         return Some(handle_diff(input));
     }
@@ -63,9 +105,7 @@ fn try_special_functions(input: &str) -> Option<Result<String, String>> {
     None
 }
 
-/// Parse function arguments from a string like "func(arg1, arg2, ...)"
 fn parse_function_args(input: &str) -> Result<Vec<String>, String> {
-    // Find the opening paren
     let start = input.find('(').ok_or("Missing opening parenthesis")?;
     let end = input.rfind(')').ok_or("Missing closing parenthesis")?;
     
@@ -75,7 +115,6 @@ fn parse_function_args(input: &str) -> Result<Vec<String>, String> {
     
     let args_str = &input[start + 1..end];
     
-    // Split by commas, but respect nested parentheses
     let mut args = Vec::new();
     let mut current_arg = String::new();
     let mut paren_depth = 0;
@@ -105,12 +144,10 @@ fn parse_function_args(input: &str) -> Result<Vec<String>, String> {
     Ok(args)
 }
 
-/// Handle integrate(expr, var, a, b) using quadrature for numerical integration
 fn handle_integrate(input: &str) -> Result<String, String> {
     let args = parse_function_args(input)?;
     
     if args.len() == 4 {
-        // Definite integral: integrate(expr, var, a, b)
         let expr = &args[0];
         let var = &args[1];
         let a: f64 = meval::eval_str(&convert_to_meval_syntax(&args[2]))
@@ -118,7 +155,6 @@ fn handle_integrate(input: &str) -> Result<String, String> {
         let b: f64 = meval::eval_str(&convert_to_meval_syntax(&args[3]))
             .map_err(|e| format!("Invalid upper bound: {}", e))?;
         
-        // Create the integrand function
         let expr_for_eval = expr.clone();
         let var_for_eval = var.clone();
         
@@ -128,28 +164,24 @@ fn handle_integrate(input: &str) -> Result<String, String> {
             meval::eval_str(&meval_expr).unwrap_or(f64::NAN)
         };
         
-        // Use quadrature for numerical integration
         let result = quadrature::integrate(integrand, a, b, 1e-10);
         
         if result.integral.is_nan() {
             return Err("Integration failed: result is NaN".to_string());
         }
         
-        // Format result
         if result.integral.fract() == 0.0 && result.integral.abs() < 1e15 {
             Ok(format!("{}", result.integral as i64))
         } else {
             Ok(format!("{:.10}", result.integral).trim_end_matches('0').trim_end_matches('.').to_string())
         }
     } else if args.len() == 2 {
-        // Indefinite integral - return symbolic representation (not supported numerically)
         Err("Indefinite integrals are not supported. Use integrate(expr, var, a, b) for definite integrals.".to_string())
     } else {
         Err("integrate requires 4 arguments: integrate(expr, var, lower, upper)".to_string())
     }
 }
 
-/// Handle limit(expr, var, value) by direct substitution
 fn handle_limit(input: &str) -> Result<String, String> {
     let args = parse_function_args(input)?;
     
@@ -162,14 +194,12 @@ fn handle_limit(input: &str) -> Result<String, String> {
     let value: f64 = meval::eval_str(&convert_to_meval_syntax(&args[2]))
         .map_err(|e| format!("Invalid limit value: {}", e))?;
     
-    // Substitute the value into the expression
     let substituted = substitute_variable(expr, var, value);
     let meval_expr = convert_to_meval_syntax(&substituted);
     
     match meval::eval_str(&meval_expr) {
         Ok(result) => {
             if result.is_nan() || result.is_infinite() {
-                // Try approaching from both sides for limits
                 let h = 1e-10;
                 let left = {
                     let sub = substitute_variable(expr, var, value - h);
@@ -202,7 +232,6 @@ fn handle_limit(input: &str) -> Result<String, String> {
     }
 }
 
-/// Handle diff(expr, var) or diff(expr, var, value) - numerical differentiation
 fn handle_diff(input: &str) -> Result<String, String> {
     let args = parse_function_args(input)?;
     
@@ -214,7 +243,6 @@ fn handle_diff(input: &str) -> Result<String, String> {
     let var = &args[1];
     
     if args.len() == 3 {
-        // Numerical derivative at a specific point
         let at_value: f64 = meval::eval_str(&convert_to_meval_syntax(&args[2]))
             .map_err(|e| format!("Invalid evaluation point: {}", e))?;
         
@@ -240,14 +268,11 @@ fn handle_diff(input: &str) -> Result<String, String> {
             Ok(format!("{:.10}", derivative).trim_end_matches('0').trim_end_matches('.').to_string())
         }
     } else {
-        // Symbolic differentiation not supported
         Err("Symbolic differentiation is not supported. Use diff(expr, var, at_value) for numerical derivative at a point.".to_string())
     }
 }
 
-/// Substitute a variable with a numeric value in an expression string
 fn substitute_variable(expr: &str, var: &str, value: f64) -> String {
-    // We need to be careful to only replace the variable, not parts of other words
     let mut result = String::new();
     let mut chars = expr.chars().peekable();
     
@@ -264,7 +289,6 @@ fn substitute_variable(expr: &str, var: &str, value: f64) -> String {
                 }
             }
             if ident == var {
-                // Handle negative values properly with parentheses
                 if value < 0.0 {
                     result.push_str(&format!("({})", value));
                 } else {
@@ -317,7 +341,6 @@ mod tests {
 
     #[test]
     fn test_integrate_definite_constant() {
-        // Integral of 2 from 0 to 3 = 6
         let result = evaluate("integrate(2, x, 0, 3)").unwrap();
         let val: f64 = result.parse().unwrap();
         assert!((val - 6.0).abs() < 0.01);
@@ -325,7 +348,6 @@ mod tests {
 
     #[test]
     fn test_integrate_definite_linear() {
-        // Integral of x from 0 to 2 = 2
         let result = evaluate("integrate(x, x, 0, 2)").unwrap();
         let val: f64 = result.parse().unwrap();
         assert!((val - 2.0).abs() < 0.01);
@@ -333,7 +355,6 @@ mod tests {
 
     #[test]
     fn test_integrate_quadratic() {
-        // Integral of x^2 from 0 to 3 = 9
         let result = evaluate("integrate(x^2, x, 0, 3)").unwrap();
         let val: f64 = result.parse().unwrap();
         assert!((val - 9.0).abs() < 0.01);
@@ -370,7 +391,6 @@ mod tests {
 
     #[test]
     fn test_diff_at_point() {
-        // Derivative of x^2 at x=3 should be 6
         let result = evaluate("diff(x^2, x, 3)").unwrap();
         let val: f64 = result.parse().unwrap();
         assert!((val - 6.0).abs() < 0.01);

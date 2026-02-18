@@ -17,6 +17,7 @@ pub struct ConfigLoadResult {
 pub struct AppConfig {
     pub general: GeneralConfig,
     pub features: FeaturesConfig,
+    pub extensions: ExtensionsConfig,
     pub window: SectionConfig,
     pub outer_box: SectionConfig,
     pub flare_ascii: FlareAsciiConfig,
@@ -26,6 +27,37 @@ pub struct AppConfig {
     pub entry: EntryConfig,
     pub entry_selected: SectionConfig,
     pub text: TextConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct ExtensionsConfig {
+    pub enabled: Vec<String>,
+}
+
+impl ExtensionsConfig {
+    pub fn is_enabled(&self, extension_id: &str) -> bool {
+        self.enabled
+            .iter()
+            .any(|candidate| canonical_extension_id(candidate) == extension_id)
+    }
+}
+
+impl Default for ExtensionsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: Vec::new(),
+        }
+    }
+}
+
+fn canonical_extension_id(id: &str) -> &str {
+    match id {
+        "calc" => "calculator",
+        "icon-picker" | "icons" | "nerd-font" | "symbol-picker" => "symbols",
+        "file-explorer" | "directory-browser" | "directories" => "files",
+        other => other,
+    }
 }
 
 impl AppConfig {
@@ -217,7 +249,9 @@ pub struct FeaturesConfig {
     pub dirs_first: bool,
     pub show_duplicates: bool,
     pub recent_first: bool,
+    pub calculator_search_trigger: String,
     pub symbol_search_trigger: String,
+    pub help_search_trigger: String,
     pub replace_calc_symbols: bool,
     pub fancy_numbers: bool,
 }
@@ -231,7 +265,9 @@ impl Default for FeaturesConfig {
             dirs_first: true,
             show_duplicates: false,
             recent_first: true,
+            calculator_search_trigger: String::from("="),
             symbol_search_trigger: String::from("."),
+            help_search_trigger: String::from("-"),
             replace_calc_symbols: false,
             fancy_numbers: false,
         }

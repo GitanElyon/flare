@@ -1,9 +1,8 @@
 mod app;
 mod config;
+mod extensions;
 mod history;
 mod ui;
-pub mod calculator;
-pub mod symbols;
 
 use crate::{app::App, config::AppConfig, ui::draw};
 use anyhow::Result;

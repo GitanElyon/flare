@@ -8,12 +8,66 @@ Flare is a customizable, lightweight, terminal-based application launcher for Li
 - **Smart ordering**: Sorts applications by usage frequency, keeping your most used apps at the top.
 - **TUI interface**: Clean, terminal-based user interface.
 - **Instant filtering**: Real-time search filtering as you type.
-- **File Explorer**: Browse and select files directly. Start with `~/` or `/` to search files exclusively, or type a path after an app name to pass it as an argument.
-- **Symbol Search**: Type `.` to search through Nerd Font symbols. Select one to copy it to the clipboard.
+- **Plugin-based extensions**: Enable features from config via `[extensions].enabled`.
+- **File Explorer plugin**: Browse and select files directly. Start with `~/` or `/` to search files exclusively, or type a path after an app name to pass it as an argument.
+- **Symbol Search plugin**: Type `.` to search through Nerd Font symbols. Select one to copy it to the clipboard.
 - **Launch Arguments**: Pass arguments to applications (e.g., `nvim ~/file.txt`).
-- **Sudo Support**: Launch applications with elevated privileges (e.g., `sudo gparted`). Includes a secure, terminal-style password prompt.
+- **Calculator plugin**: Type `=` to evaluate expressions and use history.
+- **Sudo plugin**: Launch applications with elevated privileges (e.g., `sudo gparted`). Includes a secure, terminal-style password prompt.
+- **Help plugin**: Type `-` to list available extension commands.
 - **Keyboard-centric**: Designed for efficiency with intuitive keybindings.
 - **Highly customizable**: Extensive configuration options for appearance and behavior.
+
+# Runtime Extensions & Customization
+
+Flare is designed to be fast and lightweight while being extensible at runtime. Instead of requiring compile-time feature flags, Flare supports a runtime plugin system:
+
+- Built-in extensions (Calculator, Symbols, Files, Sudo, Help) are shipped with the binary and only activate when enabled in your configuration (`[extensions].enabled`).
+- External extensions can be added without recompiling: drop an executable into `~/.config/flare/extensions/` and Flare will detect it on startup.
+
+A plugin binary should implement two simple interfaces the launcher expects:
+
+- `--info`
+	* Should print a JSON object with the plugin metadata: `name`, `description`, and `trigger`.
+	* Example output:
+
+```json
+{ "name": "My Plugin", "description": "Does something cool", "trigger": "!" }
+```
+
+- `--query <text>`
+	* Called when the user types a query beginning with the plugin's trigger (or any other trigger semantics the plugin chooses).
+	* Should write its result(s) to stdout. For simple single-result plugins, just print the answer. For richer integrations you can return a newline-separated list or any format your companion code expects.
+
+Example minimal Bash plugin (save as `~/.config/flare/extensions/hello` and make executable):
+
+```bash
+#!/usr/bin/env bash
+if [ "$1" = "--info" ]; then
+	echo '{"name":"Hello","description":"Greets the user","trigger":"!"}'
+	exit 0
+fi
+
+if [ "$1" = "--query" ]; then
+	shift
+	echo "Hello, $*"
+	exit 0
+fi
+
+echo ""
+```
+
+After you place the executable, restart Flare; the plugin will show up in the Help menu (`-`) and respond to its trigger. You can test it manually:
+
+```bash
+~/.config/flare/extensions/hello --info
+~/.config/flare/extensions/hello --query world
+```
+
+Notes:
+- Flare still provides some helpful internal utilities (history, clipboard helpers, file expansion); internal extensions use those directly. External plugins are standalone processes and communicate via `--info` / `--query`.
+- Keep your plugin fast and stdout-friendly; Flare runs the plugin synchronously while evaluating the query.
+- If you want richer integration (structured results, multiple fields), extend the small protocol above and update both your plugin and the Flare code that parses plugin output.
 
 # Installation
 
@@ -102,6 +156,8 @@ bind = $mod, space, exec, [float] $terminal -e flare
 # Configuration
 
 As detailed in the [Flare Configuration Guide](./DOCS.md), Flare reads its configuration from `~/.config/flare/config.toml`. The file is created automatically the first time you run the launcher. Edits are hot-loaded on restart.
+
+By default, Flare starts in app-launcher-only mode. Add plugins in `[extensions].enabled` to activate extra modes.
 
 [Currently]( https://github.com/pop-os/freedesktop-desktop-entry/blob/main/src/lib.rs#L656 ), Flare scans the following standard XDG directories:
 - `/usr/share/applications`

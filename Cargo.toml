@@ -14,5 +14,8 @@ toml = "0.8"
 dirs = "5.0"
 libc = "0.2"
 arboard = "3.2"
+libloading = "0.8"
 meval = "0.2.0"
 quadrature = "0.1.2"
+
+[package.metadata.nix]
