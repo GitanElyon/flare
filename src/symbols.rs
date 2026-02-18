@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
 pub static SYMBOLS: LazyLock<Vec<(&'static str, &'static str)>> = LazyLock::new(|| {
-    let json = include_str!("../symbols.json");
+    let json = include_str!("../assets/symbols.json");
     let data: Vec<(String, String)> = serde_json::from_str(json).expect("Failed to parse symbols.json");
     data.into_iter()
         .map(|(a, b)| (

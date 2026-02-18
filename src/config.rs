@@ -3,6 +3,7 @@ use ratatui::{
     prelude::*,
     widgets::{Block, BorderType, Borders},
 };
+use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use std::fs;
 
@@ -18,10 +19,11 @@ pub struct AppConfig {
     pub features: FeaturesConfig,
     pub window: SectionConfig,
     pub outer_box: SectionConfig,
+    pub flare_ascii: FlareAsciiConfig,
     pub input: SectionConfig,
-    pub scroll: SectionConfig,
-    pub inner_box: InnerBoxConfig,
-    pub entry: SectionConfig,
+    #[serde(alias = "results")]
+    pub list: ResultsConfig,
+    pub entry: EntryConfig,
     pub entry_selected: SectionConfig,
     pub text: TextConfig,
 }
@@ -78,69 +80,104 @@ impl AppConfig {
 
 impl Default for AppConfig {
     fn default() -> Self {
-        Self {
-            general: GeneralConfig::default(),
-            features: FeaturesConfig::default(),
-            window: SectionConfig {
-                bg: Some(String::from("#000000")),
-                ..SectionConfig::default()
-            },
-            outer_box: SectionConfig {
-                title: Some(String::from(" Flare ")),
-                border_color: Some(String::from("#cdd6f4")),
-                ..SectionConfig::default()
-            },
-            input: SectionConfig {
-                title: Some(String::from(" Search ")),
-                border_color: Some(String::from("#cba6f7")),
-                ..SectionConfig::default()
-            },
-            scroll: SectionConfig {
-                border_color: Some(String::from("#585b70")),
-                ..SectionConfig::default()
-            },
-            inner_box: InnerBoxConfig {
-                section: SectionConfig {
-                    border_color: Some(String::from("#cba6f7")),
-                    ..SectionConfig::default()
-                },
-                applications_title: None,
-                directories_title: None,
-                authentication_title: None,
-            },
-            entry: SectionConfig {
-                fg: Some(String::from("#cdd6f4")),
-                ..SectionConfig::default()
-            },
-            entry_selected: SectionConfig {
-                fg: Some(String::from("#1e1e2e")),
-                bg: Some(String::from("#cba6f7")),
-                ..SectionConfig::default()
-            },
-            text: TextConfig::default(),
-        }
+        include!("../assets/defaults.rs")
     }
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
-pub struct InnerBoxConfig {
+pub struct ResultsConfig {
     #[serde(flatten)]
     pub section: SectionConfig,
 
-    pub applications_title: Option<String>,
-    pub directories_title: Option<String>,
-    pub authentication_title: Option<String>,
+    #[serde(alias = "applications-title")]
+    pub apps_title: Option<String>,
+    #[serde(alias = "directories-title")]
+    pub files_title: Option<String>,
+    #[serde(alias = "authentication-title")]
+    pub sudo_title: Option<String>,
 }
 
-impl Default for InnerBoxConfig {
+impl Default for ResultsConfig {
     fn default() -> Self {
         Self {
             section: SectionConfig::default(),
-            applications_title: None,
-            directories_title: None,
-            authentication_title: None,
+            apps_title: None,
+            files_title: None,
+            sudo_title: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct FlareAsciiConfig {
+    #[serde(flatten)]
+    pub section: SectionConfig,
+    #[serde(default, deserialize_with = "deserialize_color_stops")]
+    pub gradient_colors: Vec<String>,
+    pub gradient_angle: u16,
+    pub alignment: Option<TextAlignment>,
+    pub padding: PaddingConfig,
+    pub custom_path: Option<String>,
+}
+
+impl Default for FlareAsciiConfig {
+    fn default() -> Self {
+        Self {
+            section: SectionConfig {
+               visible: Some(true),
+                ..SectionConfig::default()
+            },
+            gradient_colors: vec![String::from("#6464ff"), String::from("#c864ff")],
+            gradient_angle: 90,
+            alignment: Some(TextAlignment::Center),
+            padding: PaddingConfig::default(),
+            custom_path: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct EntryConfig {
+    #[serde(default, deserialize_with = "deserialize_color_stops")]
+    pub fg: Vec<String>,
+    #[serde(default, deserialize_with = "deserialize_color_stops")]
+    pub bg: Vec<String>,
+    pub gradient_angle: u16,
+}
+
+impl EntryConfig {
+    pub fn base_style(&self, fallback: Style) -> Style {
+        let mut style = fallback;
+        if let Some(color) = self.fg.first().and_then(|v| parse_color(v)) {
+            style = style.fg(color);
+        }
+        if let Some(color) = self.bg.first().and_then(|v| parse_color(v)) {
+            style = style.bg(color);
+        }
+        style
+    }
+}
+
+impl Default for EntryConfig {
+    fn default() -> Self {
+        Self {
+            fg: Vec::new(),
+            bg: Vec::new(),
+            gradient_angle: 90,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct PaddingConfig {
+    pub top: u16,
+    pub bottom: u16,
+    pub left: u16,
+    pub right: u16,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -151,6 +188,8 @@ pub struct GeneralConfig {
     pub highlight_symbol: Option<String>,
     pub favorite_symbol: Option<String>,
     pub favorite_key: Option<String>,
+    pub jump_to_top_key: Option<String>,
+    pub jump_to_bottom_key: Option<String>,
     pub clipboard_command: Option<String>,
 }
 
@@ -162,6 +201,8 @@ impl Default for GeneralConfig {
             highlight_symbol: Some(String::from(">> ")),
             favorite_symbol: Some(String::from("★ ")),
             favorite_key: Some(String::from("alt+f")),
+            jump_to_top_key: Some(String::from("alt+up")),
+            jump_to_bottom_key: Some(String::from("alt+down")),
             clipboard_command: None,
         }
     }
@@ -201,9 +242,16 @@ impl Default for FeaturesConfig {
 #[serde(default, rename_all = "kebab-case")]
 pub struct SectionConfig {
     pub title: Option<String>,
-    pub fg: Option<String>,
-    pub bg: Option<String>,
-    pub border_color: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_color_stops")]
+    pub fg: Vec<String>,
+    #[serde(default, deserialize_with = "deserialize_color_stops")]
+    pub bg: Vec<String>,
+    #[serde(default, deserialize_with = "deserialize_color_stops")]
+    pub border_color: Vec<String>,
+    #[serde(alias = "border-gradient-angle")]
+    pub border_angle: u16,
+    pub gradient_angle: u16,
+    pub full_width_highlight: Option<bool>,
     pub rounded: Option<bool>,
     pub borders: Option<bool>,
     #[serde(alias = "visable")]
@@ -218,10 +266,10 @@ impl SectionConfig {
 
     pub fn style(&self) -> Style {
         let mut style = Style::default();
-        if let Some(color) = self.fg.as_deref().and_then(parse_color) {
+        if let Some(color) = self.fg.first().and_then(|v| parse_color(v)) {
             style = style.fg(color);
         }
-        if let Some(color) = self.bg.as_deref().and_then(parse_color) {
+        if let Some(color) = self.bg.first().and_then(|v| parse_color(v)) {
             style = style.bg(color);
         }
         style
@@ -249,7 +297,7 @@ impl SectionConfig {
                 BorderType::Plain
             });
 
-            if let Some(color) = self.border_color.as_deref().and_then(parse_color) {
+            if let Some(color) = self.border_color.first().and_then(|v| parse_color(v)) {
                 block = block.border_style(Style::default().fg(color));
             }
         }
@@ -275,7 +323,7 @@ impl SectionConfig {
                 BorderType::Plain
             });
 
-            if let Some(color) = self.border_color.as_deref().and_then(parse_color) {
+            if let Some(color) = self.border_color.first().and_then(|v| parse_color(v)) {
                 block = block.border_style(Style::default().fg(color));
             }
         }
@@ -288,9 +336,12 @@ impl Default for SectionConfig {
     fn default() -> Self {
         Self {
             title: None,
-            fg: None,
-            bg: None,
-            border_color: None,
+            fg: Vec::new(),
+            bg: Vec::new(),
+            border_color: Vec::new(),
+            border_angle: 90,
+            gradient_angle: 90,
+            full_width_highlight: None,
             rounded: None,
             borders: None,
             visible: None,
@@ -325,7 +376,7 @@ impl Default for TextConfig {
     fn default() -> Self {
         Self {
             section: SectionConfig {
-                fg: Some(String::from("#f2f5f7")),
+                fg: vec![String::from("#f2f5f7")],
                 ..SectionConfig::default()
             },
             alignment: Some(TextAlignment::Left),
@@ -391,5 +442,24 @@ pub fn parse_color(value: &str) -> Option<Color> {
         "lightyellow" | "light-yellow" => Some(Color::LightYellow),
         _ => None,
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum ColorStopsInput {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
+fn deserialize_color_stops<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<ColorStopsInput>::deserialize(deserializer)?;
+    Ok(match value {
+        None => Vec::new(),
+        Some(ColorStopsInput::Single(single)) => vec![single],
+        Some(ColorStopsInput::Multiple(list)) => list,
+    })
 }
 

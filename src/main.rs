@@ -14,8 +14,69 @@ use crossterm::{
 };
 use ratatui::prelude::*;
 use std::io;
+use std::env;
+use std::fs;
+use dirs::config_dir;
 
 fn main() -> Result<()> {
+    let args: Vec<String> = env::args().collect();
+    if args.len() > 1 {
+        match args[1].as_str() {
+            "--gen-config" => {
+                if let Some(mut path) = config_dir() {
+                    path.push("flare");
+                    if fs::create_dir_all(&path).is_err() {
+                        eprintln!("Error: Unable to create configuration directory: {:?}", path);
+                        std::process::exit(1);
+                    }
+                    path.push("config.toml");
+
+                    if path.exists() {
+                        eprintln!("Error: Configuration file already exists at {:?}", path);
+                        std::process::exit(1);
+                    }
+
+                    // We generate the TOML directly from the default struct 
+                    // which is now defined in assets/defaults.rs
+                    let default_config_struct = AppConfig::default();
+                    match toml::to_string_pretty(&default_config_struct) {
+                        Ok(serialized) => {
+                            match fs::write(&path, serialized) {
+                                Ok(_) => {
+                                    println!("Successfully generated default configuration at {:?}", path);
+                                    std::process::exit(0);
+                                }
+                                Err(e) => {
+                                    eprintln!("Error writing configuration file: {}", e);
+                                    std::process::exit(1);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Error serializing default configuration: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    eprintln!("Error: Could not determine configuration directory.");
+                    std::process::exit(1);
+                }
+            }
+            "-h" | "--help" => {
+                println!("Flare - An Application Launcher");
+                println!("Usage: flare [OPTIONS]");
+                println!("");
+                println!("Options:");
+                println!("  --gen-config    Generate a default config file at ~/.config/flare/config.toml");
+                println!("                  (Fails if file already exists)");
+                println!("  -h, --help      Print this help message");
+                std::process::exit(0);
+            }
+            _ => {
+            }
+        }
+    }
+
     let load_result = AppConfig::load();
     if let Some(warning) = &load_result.warning {
         eprintln!("{warning}");
@@ -38,38 +99,39 @@ fn main() -> Result<()> {
                     match key.code {
                         KeyCode::Esc => {
                             app.mode = app::AppMode::AppSelection;
-                            app.sudo_password.clear();
+                            app.clear_sudo_password();
                             app.pending_command = None;
                             app.sudo_log.clear();
                         }
                         KeyCode::Enter => app.launch_selected(),
-                        KeyCode::Backspace => {
-                            app.sudo_password.pop();
-                        }
-                        KeyCode::Char(c) => {
-                            app.sudo_password.push(c);
-                        }
+                        KeyCode::Backspace => app.backspace_sudo_char(),
+                        KeyCode::Left => app.move_sudo_cursor_left(),
+                        KeyCode::Right => app.move_sudo_cursor_right(),
+                        KeyCode::Char(c) => app.insert_sudo_char(c),
                         _ => {}
                     }
                 } else {
+                    if matches_key(&key, app.config.general.jump_to_top_key.as_deref().unwrap_or("alt+up")) {
+                        app.select_first();
+                        continue;
+                    }
+                    if matches_key(&key, app.config.general.jump_to_bottom_key.as_deref().unwrap_or("alt+down")) {
+                        app.select_last();
+                        continue;
+                    }
+
                     match key.code {
                         KeyCode::Esc => app.should_quit = true,
                         KeyCode::Enter => app.launch_selected(),
                         KeyCode::Up => app.move_selection(-1),
                         KeyCode::Down => app.move_selection(1),
-                        KeyCode::Left => app.select_first(),
-                        KeyCode::Right => app.select_last(),
+                        KeyCode::Left => app.move_search_cursor_left(),
+                        KeyCode::Right => app.move_search_cursor_right(),
                         _ if matches_key(&key, app.config.general.favorite_key.as_deref().unwrap_or("alt+f")) => {
                             app.toggle_favorite();
                         }
-                        KeyCode::Backspace => {
-                            app.search_query.pop();
-                            app.update_filter();
-                        }
-                        KeyCode::Char(c) => {
-                            app.search_query.push(c);
-                            app.update_filter();
-                        }
+                        KeyCode::Backspace => app.backspace_search_char(),
+                        KeyCode::Char(c) => app.insert_search_char(c),
                         KeyCode::Tab => app.auto_complete(),
                         _ => {}
                     }

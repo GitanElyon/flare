@@ -91,7 +91,8 @@ bind = $mod, space, exec, [float] $terminal -e flare
 | --- | --- |
 | **Type** | Filter the application list |
 | **Up / Down** | Navigate the list |
-| **Left / Right** | Jump to top / bottom of list |
+| **Left / Right** | Move cursor in input (edit text in-place) |
+| **Alt + Up / Alt + Down** | Jump to top / bottom of list |
 | **Alt + f** | Toggle favorite status |
 | **Tab** | Auto-complete file paths |
 | **Enter** | Launch selected application |

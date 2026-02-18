@@ -8,6 +8,8 @@ pub struct History {
     pub usage: HashMap<String, u64>,
     #[serde(default)]
     pub favorites: Vec<String>,
+    #[serde(default)]
+    pub favorite_symbols: Vec<String>,
 }
 
 impl History {
@@ -58,6 +60,19 @@ impl History {
 
     pub fn is_favorite(&self, app_name: &str) -> bool {
         self.favorites.contains(&app_name.to_string())
+    }
+
+    pub fn toggle_favorite_symbol(&mut self, symbol_name: &str) {
+        if let Some(pos) = self.favorite_symbols.iter().position(|x| x == symbol_name) {
+            self.favorite_symbols.remove(pos);
+        } else {
+            self.favorite_symbols.push(symbol_name.to_string());
+        }
+        self.save();
+    }
+
+    pub fn is_favorite_symbol(&self, symbol_name: &str) -> bool {
+        self.favorite_symbols.contains(&symbol_name.to_string())
     }
 }
 
