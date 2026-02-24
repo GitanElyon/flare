@@ -94,7 +94,7 @@ fn main() -> Result<()> {
 
         if let Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Press {
-                if app.mode == app::AppMode::SudoPassword {
+                if app.mode == app::AppMode::Authentication {
                     match key.code {
                         KeyCode::Esc => {
                             app.mode = app::AppMode::AppSelection;

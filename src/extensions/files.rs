@@ -20,6 +20,10 @@ impl FlareExtension for Files {
         let files = list_files(query, config.features.dirs_first);
         ExtensionResult::Files(files)
     }
+
+    fn expand_path(&self, path: &str) -> Option<String> {
+        Some(expand_tilde(path))
+    }
 }
 
 pub fn metadata(_config: &AppConfig) -> ExtensionMetadata {
@@ -27,6 +31,7 @@ pub fn metadata(_config: &AppConfig) -> ExtensionMetadata {
         name: "Files".to_string(),
         description: "Browse files and directories".to_string(),
         trigger: "~/ or /".to_string(),
+        query_example: Some("~/".to_string()),
     }
 }
 

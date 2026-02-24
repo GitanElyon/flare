@@ -62,15 +62,6 @@ impl History {
         self.favorites.contains(&app_name.to_string())
     }
 
-    pub fn toggle_favorite_symbol(&mut self, symbol_name: &str) {
-        if let Some(pos) = self.favorite_symbols.iter().position(|x| x == symbol_name) {
-            self.favorite_symbols.remove(pos);
-        } else {
-            self.favorite_symbols.push(symbol_name.to_string());
-        }
-        self.save();
-    }
-
     pub fn is_favorite_symbol(&self, symbol_name: &str) -> bool {
         self.favorite_symbols.contains(&symbol_name.to_string())
     }
@@ -119,6 +110,55 @@ impl MathHistory {
         // Keep only last 50 entries for example, or just add to front
         self.entries.insert(0, MathEntry { expression, result });
         if self.entries.len() > 50 {
+            self.entries.pop();
+        }
+        self.save();
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ClipboardHistory {
+    pub entries: Vec<String>,
+}
+
+impl ClipboardHistory {
+    pub fn load() -> Self {
+        if let Some(mut path) = config_dir() {
+            path.push("flare");
+            path.push("clip_history.toml");
+            if path.exists() {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(history) = toml::from_str(&content) {
+                        return history;
+                    }
+                }
+            }
+        }
+        Self::default()
+    }
+
+    pub fn save(&self) {
+        if let Some(mut path) = config_dir() {
+            path.push("flare");
+            if fs::create_dir_all(&path).is_ok() {
+                path.push("clip_history.toml");
+                if let Ok(content) = toml::to_string(self) {
+                    let _ = fs::write(path, content);
+                }
+            }
+        }
+    }
+
+    pub fn add(&mut self, text: String) {
+        let text = text.trim().to_string();
+        if text.is_empty() { return; }
+        
+        if let Some(pos) = self.entries.iter().position(|x| x == &text) {
+            self.entries.remove(pos);
+        }
+        
+        self.entries.insert(0, text);
+        if self.entries.len() > 100 {
             self.entries.pop();
         }
         self.save();

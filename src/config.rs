@@ -17,6 +17,7 @@ pub struct ConfigLoadResult {
 pub struct AppConfig {
     pub general: GeneralConfig,
     pub features: FeaturesConfig,
+    #[serde(skip)]
     pub extensions: ExtensionsConfig,
     pub window: SectionConfig,
     pub outer_box: SectionConfig,
@@ -27,6 +28,54 @@ pub struct AppConfig {
     pub entry: EntryConfig,
     pub entry_selected: SectionConfig,
     pub text: TextConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct ExtensionFileConfig {
+    pub enabled: Vec<String>,
+    pub calculator: CalculatorExtensionConfig,
+    pub symbols: SymbolsExtensionConfig,
+    pub help: HelpExtensionConfig,
+    pub clipboard: ClipboardExtensionConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct CalculatorExtensionConfig {
+    pub trigger: String,
+    pub replace_symbols: bool,
+    pub fancy_numbers: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct SymbolsExtensionConfig {
+    pub trigger: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct HelpExtensionConfig {
+    pub trigger: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct ClipboardExtensionConfig {
+    pub trigger: String,
+    pub prefer_external_history_tools: bool,
+}
+
+pub mod extension_defaults {
+    use super::{
+        CalculatorExtensionConfig, ClipboardExtensionConfig, ExtensionFileConfig,
+        HelpExtensionConfig, SymbolsExtensionConfig,
+    };
+
+    pub fn default_extension_file_config() -> ExtensionFileConfig {
+        include!("../assets/extension_defaults.rs")
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,6 +105,7 @@ fn canonical_extension_id(id: &str) -> &str {
         "calc" => "calculator",
         "icon-picker" | "icons" | "nerd-font" | "symbol-picker" => "symbols",
         "file-explorer" | "directory-browser" | "directories" => "files",
+        "clip" | "clipboard-history" => "clipboard",
         other => other,
     }
 }
@@ -64,7 +114,7 @@ impl AppConfig {
     pub fn load() -> ConfigLoadResult {
         let default = Self::default();
         let mut warning = None;
-        let config = match config_dir() {
+        let mut config = match config_dir() {
             Some(mut dir) => {
                 dir.push("flare");
                 if fs::create_dir_all(&dir).is_err() {
@@ -106,13 +156,119 @@ impl AppConfig {
             }
         };
 
+        let extension_file = ExtensionFileConfig::load_or_create(&mut warning);
+        config.apply_extension_file(extension_file);
+
         ConfigLoadResult { config, warning }
+    }
+
+    fn apply_extension_file(&mut self, extension_file: ExtensionFileConfig) {
+        self.extensions.enabled = extension_file.enabled;
+        self.features.calculator_search_trigger = extension_file.calculator.trigger;
+        self.features.replace_calc_symbols = extension_file.calculator.replace_symbols;
+        self.features.fancy_numbers = extension_file.calculator.fancy_numbers;
+        self.features.symbol_search_trigger = extension_file.symbols.trigger;
+        self.features.help_search_trigger = extension_file.help.trigger;
+        self.features.clipboard_search_trigger = extension_file.clipboard.trigger;
+        self.features.clipboard_prefer_external_history_tools =
+            extension_file.clipboard.prefer_external_history_tools;
     }
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         include!("../assets/defaults.rs")
+    }
+}
+
+impl ExtensionFileConfig {
+    pub fn load_or_create(warning: &mut Option<String>) -> Self {
+        let default = Self::default();
+
+        let Some(mut dir) = config_dir() else {
+            return default;
+        };
+
+        dir.push("flare");
+        if fs::create_dir_all(&dir).is_err() {
+            if warning.is_none() {
+                *warning = Some("Unable to create ~/.config/flare, using extension defaults".into());
+            }
+            return default;
+        }
+
+        let file_path = dir.join("extention_config.toml");
+        if file_path.exists() {
+            match fs::read_to_string(&file_path) {
+                Ok(contents) => match toml::from_str::<Self>(&contents) {
+                    Ok(parsed) => parsed,
+                    Err(err) => {
+                        if warning.is_none() {
+                            *warning = Some(format!(
+                                "Invalid extention_config.toml ({}). Falling back to extension defaults.",
+                                err
+                            ));
+                        }
+                        default
+                    }
+                },
+                Err(err) => {
+                    if warning.is_none() {
+                        *warning = Some(format!(
+                            "Failed to read extention_config.toml ({}). Using extension defaults.",
+                            err
+                        ));
+                    }
+                    default
+                }
+            }
+        } else {
+            if let Ok(serialized) = toml::to_string_pretty(&default) {
+                let _ = fs::write(&file_path, serialized);
+            }
+            default
+        }
+    }
+}
+
+impl Default for ExtensionFileConfig {
+    fn default() -> Self {
+        extension_defaults::default_extension_file_config()
+    }
+}
+
+impl Default for CalculatorExtensionConfig {
+    fn default() -> Self {
+        Self {
+            trigger: String::from("="),
+            replace_symbols: false,
+            fancy_numbers: false,
+        }
+    }
+}
+
+impl Default for SymbolsExtensionConfig {
+    fn default() -> Self {
+        Self {
+            trigger: String::from("."),
+        }
+    }
+}
+
+impl Default for HelpExtensionConfig {
+    fn default() -> Self {
+        Self {
+            trigger: String::from("-"),
+        }
+    }
+}
+
+impl Default for ClipboardExtensionConfig {
+    fn default() -> Self {
+        Self {
+            trigger: String::from("+"),
+            prefer_external_history_tools: true,
+        }
     }
 }
 
@@ -249,10 +405,19 @@ pub struct FeaturesConfig {
     pub dirs_first: bool,
     pub show_duplicates: bool,
     pub recent_first: bool,
+    #[serde(skip)]
     pub calculator_search_trigger: String,
+    #[serde(skip)]
     pub symbol_search_trigger: String,
+    #[serde(skip)]
     pub help_search_trigger: String,
+    #[serde(skip)]
+    pub clipboard_search_trigger: String,
+    #[serde(skip)]
+    pub clipboard_prefer_external_history_tools: bool,
+    #[serde(skip)]
     pub replace_calc_symbols: bool,
+    #[serde(skip)]
     pub fancy_numbers: bool,
 }
 
@@ -268,6 +433,8 @@ impl Default for FeaturesConfig {
             calculator_search_trigger: String::from("="),
             symbol_search_trigger: String::from("."),
             help_search_trigger: String::from("-"),
+            clipboard_search_trigger: String::from("+"),
+            clipboard_prefer_external_history_tools: true,
             replace_calc_symbols: false,
             fancy_numbers: false,
         }

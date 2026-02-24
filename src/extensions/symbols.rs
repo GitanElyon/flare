@@ -2,10 +2,10 @@ use crate::{
     config::AppConfig,
     history::History,
 };
-use arboard::Clipboard;
-use std::process::{Command, Stdio};
 use std::sync::LazyLock;
-use super::api::{ExtensionMetadata, FlareExtension, ExtensionResult};
+use super::api::{
+    ExtensionListAction, ExtensionListItem, ExtensionMetadata, ExtensionResult, FlareExtension,
+};
 
 pub struct Symbols;
 
@@ -18,11 +18,24 @@ impl FlareExtension for Symbols {
         crate::extensions::symbols::should_handle(query, config)
     }
 
-    fn process(&self, _query: &str, _config: &AppConfig, _registry: &crate::extensions::ExtensionRegistry) -> ExtensionResult {
-        // We'll pass an empty history for the generic process for now, 
-        // as history is managed by the App struct.
-        // In a more mature plugin system, history might be a shared resource.
-        ExtensionResult::List(Vec::new())
+    fn process(&self, query: &str, config: &AppConfig, _registry: &crate::extensions::ExtensionRegistry) -> ExtensionResult {
+        let history = History::load();
+        let symbols = filter_symbols(query, config, &history)
+            .into_iter()
+            .map(|(name, symbol, is_favorite)| {
+                let prefix = if is_favorite { "★ " } else { "" };
+                ExtensionListItem {
+                    title: format!("{}{} {}", prefix, symbol, name),
+                    value: symbol,
+                }
+            })
+            .collect();
+
+        ExtensionResult::List {
+            title: "Symbols".to_string(),
+            items: symbols,
+            action: ExtensionListAction::CopyToClipboardAndExit,
+        }
     }
 }
 
@@ -42,6 +55,7 @@ pub fn metadata(config: &AppConfig) -> ExtensionMetadata {
         name: "Symbols".to_string(),
         description: "Search and copy Nerd Font icons/symbols".to_string(),
         trigger: config.features.symbol_search_trigger.clone(),
+        query_example: None,
     }
 }
 
@@ -53,7 +67,7 @@ pub fn filter_symbols(
     query: &str,
     config: &AppConfig,
     history: &History,
-) -> Vec<(&'static str, &'static str)> {
+) -> Vec<(String, String, bool)> {
     let query = query
         .strip_prefix(&config.features.symbol_search_trigger)
         .unwrap_or("")
@@ -61,11 +75,15 @@ pub fn filter_symbols(
         .to_lowercase();
 
     if query.is_empty() {
-        let mut symbols: Vec<(&'static str, &'static str)> =
-            SYMBOLS.iter().cloned().collect();
-        symbols.sort_by(|(name_a, _), (name_b, _)| {
-            let fav_a = history.is_favorite_symbol(name_a);
-            let fav_b = history.is_favorite_symbol(name_b);
+        let mut symbols: Vec<(String, String, bool)> = SYMBOLS
+            .iter()
+            .map(|(a, b)| {
+                let name = a.to_string();
+                let favorite = history.is_favorite_symbol(&name);
+                (name, b.to_string(), favorite)
+            })
+            .collect();
+        symbols.sort_by(|(name_a, _, fav_a), (name_b, _, fav_b)| {
             if fav_a != fav_b {
                 return fav_b.cmp(&fav_a);
             }
@@ -74,22 +92,21 @@ pub fn filter_symbols(
         return symbols;
     }
 
-    let mut scored_symbols: Vec<(i64, (&'static str, &'static str))> = SYMBOLS
+    let mut scored_symbols: Vec<(i64, (String, String, bool))> = SYMBOLS
         .iter()
         .filter_map(|&(name, symbol)| {
             let name_lower = name.to_lowercase();
             if name_lower.contains(&query) {
                 let score = if name_lower.starts_with(&query) { 100 } else { 0 };
-                Some((score, (name, symbol)))
+                let name = name.to_string();
+                Some((score, (name.clone(), symbol.to_string(), history.is_favorite_symbol(&name))))
             } else {
                 None
             }
         })
         .collect();
 
-    scored_symbols.sort_by(|(score_a, (name_a, _)), (score_b, (name_b, _))| {
-        let fav_a = history.is_favorite_symbol(name_a);
-        let fav_b = history.is_favorite_symbol(name_b);
+    scored_symbols.sort_by(|(score_a, (name_a, _, fav_a)), (score_b, (name_b, _, fav_b))| {
         if fav_a != fav_b {
             return fav_b.cmp(&fav_a);
         }
@@ -97,20 +114,4 @@ pub fn filter_symbols(
     });
 
     scored_symbols.into_iter().map(|(_, symbol)| symbol).collect()
-}
-
-pub fn copy_to_clipboard(symbol: &str) {
-    if let Ok(mut clipboard) = Clipboard::new() {
-        let _ = clipboard.set_text(symbol.to_string());
-    }
-}
-
-pub fn copy_to_clipboard_with_notify(symbol: &str) {
-    copy_to_clipboard(symbol);
-    let _ = Command::new("notify-send")
-        .arg("Flare")
-        .arg(format!("Copied {} to clipboard", symbol))
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn();
 }

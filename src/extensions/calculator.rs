@@ -26,6 +26,7 @@ pub fn metadata(config: &AppConfig) -> ExtensionMetadata {
         name: "Calculator".to_string(),
         description: "Evaluate mathematical expressions".to_string(),
         trigger: trigger(config).to_string(),
+        query_example: None,
     }
 }
 

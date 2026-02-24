@@ -1,11 +1,15 @@
 pub mod api;
 pub mod calculator;
+pub mod clipboard;
 pub mod files;
 pub mod help;
 pub mod sudo;
 pub mod symbols;
 
-pub use api::{ExtensionMetadata, ExtensionResult, FlareExtension};
+pub use api::{
+    AuthResult, ExtensionListAction, ExtensionListItem, ExtensionMetadata, ExtensionResult,
+    FlareExtension,
+};
 use crate::config::AppConfig;
 use std::fs;
 use std::process::Command;
@@ -63,6 +67,10 @@ impl ExtensionRegistry {
             extensions.push(Box::new(symbols::Symbols));
         }
 
+        if config.extensions.is_enabled("clipboard") {
+            extensions.push(Box::new(clipboard::ClipboardExt));
+        }
+
         if config.extensions.is_enabled("files") {
             extensions.push(Box::new(files::Files));
         }
@@ -99,5 +107,60 @@ impl ExtensionRegistry {
         }
 
         Self { extensions }
+    }
+
+    /// Expand a path by delegating to any extension that handles path expansion.
+    pub fn expand_path(&self, path: &str) -> String {
+        for ext in &self.extensions {
+            if let Some(expanded) = ext.expand_path(path) {
+                return expanded;
+            }
+        }
+        path.to_string()
+    }
+
+    /// List file/directory completions for a query path by delegating to extensions.
+    pub fn list_completions(&self, query: &str, config: &AppConfig) -> Vec<String> {
+        for ext in &self.extensions {
+            if ext.should_handle(query, config) {
+                if let ExtensionResult::Files(files) = ext.process(query, config, self) {
+                    return files;
+                }
+            }
+        }
+        Vec::new()
+    }
+
+    /// Strip any query prefix (e.g. "sudo") and return `(stripped_query, prefix_args)`.
+    pub fn preprocess_query(&self, query: &str, config: &AppConfig) -> (String, Vec<String>) {
+        for ext in &self.extensions {
+            if let Some((stripped, prefix_args)) = ext.strip_prefix(query, config) {
+                return (stripped, prefix_args);
+            }
+        }
+        (query.to_string(), Vec::new())
+    }
+
+    /// Returns `true` if any loaded extension requires authentication for the given query.
+    pub fn requires_auth(&self, query: &str, config: &AppConfig) -> bool {
+        self.extensions.iter().any(|ext| ext.requires_auth(query, config))
+    }
+
+    /// Authenticate and launch via the first extension that claims the query.
+    pub fn authenticate_and_launch(
+        &self,
+        password: &str,
+        cmd: &str,
+        args: &[String],
+        prefix_args: &[String],
+        query: &str,
+        config: &AppConfig,
+    ) -> api::AuthResult {
+        for ext in &self.extensions {
+            if ext.requires_auth(query, config) {
+                return ext.authenticate_and_launch(password, cmd, args, prefix_args);
+            }
+        }
+        api::AuthResult::LaunchError("No authentication extension available".to_string())
     }
 }

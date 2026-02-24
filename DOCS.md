@@ -1,13 +1,14 @@
 # Flare Configuration Guide
 
-Flare reads its configuration from `~/.config/flare/config.toml`. The file is created automatically the first time you run the launcher. Edits are hot-loaded on restart.
+Flare reads core UI/launcher configuration from `~/.config/flare/config.toml` and extension-specific configuration from `~/.config/flare/extention_config.toml`. Both files are created automatically.
 
 ## Getting Started
 
 1. Launch Flare once so the default config is written.
-2. Open `~/.config/flare/config.toml` in your editor of choice.
-3. Tweak the sections you care about (colors, borders, titles, etc.).
-4. Restart Flare to see the new look. Keep the app running in one terminal while you edit in another to iterate quickly.
+2. Open `~/.config/flare/config.toml` for core UI/launcher settings.
+3. Open `~/.config/flare/extention_config.toml` for extension toggles and extension-specific options.
+4. Tweak the sections you care about (colors, borders, titles, etc.).
+5. Restart Flare to see the new look. Keep the app running in one terminal while you edit in another to iterate quickly.
 
 You can also copy configs between machines—Flare only cares that the TOML structure matches the sections described below.
 
@@ -33,16 +34,6 @@ enable-auto-complete = true
 dirs-first = true
 show-duplicates = false
 recent-first = true
-calculator-search-trigger = "="
-symbol-search-trigger = "."
-help-search-trigger = "-"
-replace-calc-symbols = false
-fancy-numbers = true
-
-[extensions]
-# By default this is empty, so Flare runs as an app launcher only.
-# Add any of: calculator, symbols, files, sudo, help
-enabled = ["calculator", "symbols", "files", "sudo", "help"]
 
 [window]
 visible = false          # alias: visable = true
@@ -188,24 +179,52 @@ The `[features]` block allows you to toggle specific functionalities:
 - `dirs-first`: When listing files, show directories before files. Defaults to `true`.
 - `show-duplicates`: Shows duplicate entries when the same application appears in multiple locations (e.g., both `/usr/share/applications` and `~/.local/share/applications`). Set to `true` to show all instances, or `false` to show only the first occurrence. Defaults to `false`.
 - `recent-first`: Sorts applications by usage frequency. Defaults to `true`.
-- `calculator-search-trigger`: Trigger for calculator mode. Defaults to `=`.
-- `symbol-search-trigger`: Trigger for symbol picker mode. Defaults to `.`.
-- `help-search-trigger`: Trigger for command/help list. Defaults to `-`.
 
-### Extensions Section
+### Extension Config File (`extention_config.toml`)
 
-The `[extensions]` block controls which plugin modules are active.
+Extension toggles and extension-specific options live in `~/.config/flare/extention_config.toml`.
+
+```toml
+enabled = ["calculator", "symbols", "files", "sudo", "help", "clipboard"]
+
+[calculator]
+trigger = "="
+replace-symbols = false
+fancy-numbers = false
+
+[symbols]
+trigger = "."
+
+[help]
+trigger = "-"
+
+[clipboard]
+trigger = "+"
+prefer-external-history-tools = true
+```
 
 - `enabled`: List of extension IDs. If empty, Flare behaves as an app launcher only.
+- `calculator.trigger`: Trigger for calculator mode. Defaults to `=`.
+- `calculator.replace-symbols`: Replace calculator symbols in rendered output.
+- `calculator.fancy-numbers`: Use fancy rendered numeric glyph formatting.
+- `symbols.trigger`: Trigger for symbol picker mode. Defaults to `.`.
+- `help.trigger`: Trigger for command/help list. Defaults to `-`.
+- `clipboard.trigger`: Trigger for clipboard history mode. Defaults to `+`.
+- `clipboard.prefer-external-history-tools`: Prefer `wl-clipboard-history`, `cliphist`, or `copyq` before falling back to Flare local clipboard history.
 
 Supported IDs:
 - `calculator`
 - `symbols`
+- `clipboard`
 - `files`
 - `sudo`
 - `help`
 
 Aliases are accepted for compatibility (`calc`, `icon-picker`, `directory-browser`, etc.).
+
+Clipboard extension notes:
+- Flare will try installed clipboard history tools first (`wl-clipboard-history`, `cliphist`, `copyq`).
+- If none are available, it falls back to Flare's local history file at `~/.config/flare/clip_history.toml`.
 
 ### Color Syntax
 

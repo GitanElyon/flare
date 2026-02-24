@@ -1,3 +1,6 @@
+{
+let extension_defaults = extension_defaults::default_extension_file_config();
+
 AppConfig {
     general: GeneralConfig {
         rounded_corners: true,
@@ -16,14 +19,18 @@ AppConfig {
         dirs_first: true,
         show_duplicates: false,
         recent_first: true,
-        calculator_search_trigger: String::from("="),
-        symbol_search_trigger: String::from("."),
-        help_search_trigger: String::from("-"),
-        replace_calc_symbols: false,
-        fancy_numbers: false,
+        calculator_search_trigger: extension_defaults.calculator.trigger.clone(),
+        symbol_search_trigger: extension_defaults.symbols.trigger.clone(),
+        help_search_trigger: extension_defaults.help.trigger.clone(),
+        clipboard_search_trigger: extension_defaults.clipboard.trigger.clone(),
+        clipboard_prefer_external_history_tools: extension_defaults
+            .clipboard
+            .prefer_external_history_tools,
+        replace_calc_symbols: extension_defaults.calculator.replace_symbols,
+        fancy_numbers: extension_defaults.calculator.fancy_numbers,
     },
     extensions: ExtensionsConfig {
-        enabled: vec![],
+        enabled: extension_defaults.enabled,
     },
     window: SectionConfig {
         title: None,
@@ -141,4 +148,5 @@ AppConfig {
         },
         alignment: Some(TextAlignment::Left),
     },
+}
 }

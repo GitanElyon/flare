@@ -145,12 +145,10 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let list_chunk = chunks[chunk_index];
 
     if let Some(chunk) = search_chunk {
-        let title = if app.mode == AppMode::SymbolSelection {
-            " Symbols "
-        } else if app.mode == AppMode::Calculator {
+        let title = if app.mode == AppMode::ExtensionList {
+            app.extension_list_title.as_deref().unwrap_or(" Extension ")
+        } else if app.mode == AppMode::SingleResult {
             " Calculator "
-        } else if app.mode == AppMode::HelpSelection {
-            " Commands "
         } else {
             " Search "
         };
@@ -201,7 +199,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let selected_fg_colors = parse_gradient_colors(&config.entry_selected.fg);
     let selected_bg_colors = parse_gradient_colors(&config.entry_selected.bg);
 
-    if app.mode == AppMode::SudoPassword {
+    if app.mode == AppMode::Authentication {
         let block = if config.list.section.is_visible() {
             let title = config.list.sudo_title.as_deref().unwrap_or(" Authentication ");
             config.list.section.block_with_title(general, title)
@@ -275,10 +273,10 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     )
                 })
                 .collect()
-        } else if app.mode == AppMode::Calculator {
+        } else if app.mode == AppMode::SingleResult {
             let mut list_items = Vec::new();
             let mut idx = 0usize;
-            if let Some((expr, result)) = &app.calculator_result {
+            if let Some((expr, result)) = &app.single_result {
                 let mut text = if config.features.replace_calc_symbols {
                     format!("{} = {}", replace_symbols(expr), replace_symbols(result))
                 } else {
@@ -350,59 +348,17 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                 idx += 1;
             }
             list_items
-        } else if app.mode == AppMode::SymbolSelection {
-            app.filtered_symbols
+        } else if app.mode == AppMode::ExtensionList {
+            app.filtered_extension_items
                 .iter()
                 .enumerate()
-                .map(|(idx, (name, symbol))| {
+                .map(|(idx, item)| {
                     if !config.text.is_visible() {
                         return ListItem::new(Span::raw(""));
                     }
 
-                    let is_fav = app.history.is_favorite_symbol(name);
-                    let fav_symbol_cfg = config.general.favorite_symbol.as_deref().unwrap_or("★ ");
-                    let empty_prefix = " ".repeat(fav_symbol_cfg.chars().count());
-                    let prefix = if is_fav { fav_symbol_cfg } else { &empty_prefix };
-
-                    let text = format!("{}{} {}", prefix, symbol, name);
-                    let mut display_text = aligned_text(&text, text_area_width, config.text.alignment());
-
-                    if entry_selected_visible {
-                        let prefix = if Some(idx) == selected_idx {
-                            highlight_symbol.to_string()
-                        } else {
-                            " ".repeat(highlight_symbol.chars().count())
-                        };
-                        display_text = format!("{}{}", prefix, display_text);
-                    }
-
-                    build_list_item(
-                        &display_text,
-                        config,
-                        Some(idx) == selected_idx,
-                        &entry_fg_colors,
-                        &entry_bg_colors,
-                        &selected_fg_colors,
-                        &selected_bg_colors,
-                        config.entry.gradient_angle,
-                        config.entry_selected.gradient_angle,
-                        full_row_width,
-                        normal_entry_style,
-                        entry_style,
-                    )
-                })
-                .collect()
-        } else if app.mode == AppMode::HelpSelection {
-            app.filtered_help
-                .iter()
-                .enumerate()
-                .map(|(idx, command)| {
-                    if !config.text.is_visible() {
-                        return ListItem::new(Span::raw(""));
-                    }
-
-                    let text = format!("{:10}  {:10}  {}", command.trigger, command.name, command.description);
-                    let mut display_text = aligned_text(&text, text_area_width, config.text.alignment());
+                    let mut display_text =
+                        aligned_text(&item.title, text_area_width, config.text.alignment());
 
                     if entry_selected_visible {
                         let prefix = if Some(idx) == selected_idx {
@@ -471,12 +427,10 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         if config.list.section.is_visible() {
             let title = if app.mode == AppMode::AppSelection {
                 config.list.apps_title.as_deref().unwrap_or(" Applications ")
-            } else if app.mode == AppMode::SymbolSelection {
-                " Symbols "
-            } else if app.mode == AppMode::Calculator {
+            } else if app.mode == AppMode::ExtensionList {
+                app.extension_list_title.as_deref().unwrap_or(" Extension ")
+            } else if app.mode == AppMode::SingleResult {
                 " Solution "
-            } else if app.mode == AppMode::HelpSelection {
-                " Commands "
             } else {
                 config.list.files_title.as_deref().unwrap_or(" Directories ")
             };

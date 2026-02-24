@@ -1,5 +1,5 @@
 use crate::config::AppConfig;
-use super::api::{ExtensionMetadata, FlareExtension, ExtensionResult};
+use super::api::{ExtensionListAction, ExtensionListItem, ExtensionMetadata, ExtensionResult, FlareExtension};
 
 pub struct HelpExtension;
 
@@ -13,7 +13,18 @@ impl FlareExtension for HelpExtension {
     }
 
     fn process(&self, _query: &str, config: &AppConfig, registry: &crate::extensions::ExtensionRegistry) -> ExtensionResult {
-        ExtensionResult::Help(available_commands(config, registry))
+        let items = available_commands(config, registry)
+            .into_iter()
+            .map(|cmd| ExtensionListItem {
+                title: format!("{:10}  {:10}  {}", cmd.trigger, cmd.name, cmd.description),
+                value: cmd.query_example,
+            })
+            .collect();
+        ExtensionResult::List {
+            title: " Commands ".to_string(),
+            items,
+            action: ExtensionListAction::SetSearchQuery,
+        }
     }
 }
 
@@ -22,6 +33,7 @@ pub struct HelpCommand {
     pub name: String,
     pub trigger: String,
     pub description: String,
+    pub query_example: String,
 }
 
 pub fn metadata(config: &AppConfig) -> ExtensionMetadata {
@@ -29,6 +41,7 @@ pub fn metadata(config: &AppConfig) -> ExtensionMetadata {
         name: "Help".to_string(),
         description: "Show this help menu".to_string(),
         trigger: trigger(config).to_string(),
+        query_example: None,
     }
 }
 
@@ -45,10 +58,12 @@ pub fn available_commands(config: &AppConfig, registry: &crate::extensions::Exte
 
     for ext in &registry.extensions {
         let meta = ext.metadata(config);
+        let query_example = meta.query_example.unwrap_or_else(|| meta.trigger.clone());
         commands.push(HelpCommand {
             name: meta.name,
             trigger: meta.trigger,
             description: meta.description,
+            query_example,
         });
     }
 
