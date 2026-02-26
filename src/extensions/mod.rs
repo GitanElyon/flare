@@ -3,8 +3,10 @@ pub mod calculator;
 pub mod clipboard;
 pub mod files;
 pub mod help;
+pub mod runner;
 pub mod sudo;
 pub mod symbols;
+pub mod volume;
 
 pub use api::{
     AuthResult, ExtensionListAction, ExtensionListItem, ExtensionMetadata, ExtensionResult,
@@ -77,6 +79,14 @@ impl ExtensionRegistry {
 
         if config.extensions.is_enabled("sudo") {
             extensions.push(Box::new(sudo::Sudo));
+        }
+
+        if config.extensions.is_enabled("runner") {
+            extensions.push(Box::new(runner::Runner));
+        }
+
+        if config.extensions.is_enabled("volume") {
+            extensions.push(Box::new(volume::Volume));
         }
 
         // Load external plugins

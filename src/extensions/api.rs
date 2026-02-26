@@ -25,8 +25,22 @@ pub enum ExtensionListAction {
     SetSearchQuery,
     /// Append the selected item's value to the current search query.
     AppendToQuery,
+    /// Execute the item's value as a shell command via `sh -c`, then exit.
+    ExecuteAndExit,
+    /// Execute the item's value as a shell command (blocking), then refresh the view.
+    ExecuteAndRefresh,
     None,
 }
+
+// Notes for extension authors:
+// - `ExecuteAndExit` means the UI will spawn the command and then quit immediately.
+//   Use this when the intent is to run a side-effecting shell command and close the launcher.
+// - `ExecuteAndRefresh` means the UI will run the command (blocking) and then call
+//   `update_filter()` / refresh the extension list. Extensions that change system state
+//   (for example, volume changes or device switching) should use `ExecuteAndRefresh` so
+//   the UI can re-query and display the updated state without losing focus.
+// - `CopyToClipboardAndExit`, `SetSearchQuery` and `AppendToQuery` are handled by the
+//   host; extension authors can return these to indicate the desired interaction.
 
 #[derive(Debug, Clone)]
 pub enum AuthResult {

@@ -106,6 +106,8 @@ fn canonical_extension_id(id: &str) -> &str {
         "icon-picker" | "icons" | "nerd-font" | "symbol-picker" => "symbols",
         "file-explorer" | "directory-browser" | "directories" => "files",
         "clip" | "clipboard-history" => "clipboard",
+        "run" | "cmd" | "shell" | "exec" => "runner",
+        "vol" | "audio" | "speaker" | "sound" => "volume",
         other => other,
     }
 }

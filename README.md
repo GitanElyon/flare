@@ -14,8 +14,8 @@ Flare is a customizable, lightweight, terminal-based application launcher for Li
 - **Launch Arguments**: Pass arguments to applications (e.g., `nvim ~/file.txt`).
 - **Calculator plugin**: Type `=` to evaluate expressions and use history.
 - **Clipboard History plugin**: Type `+` to browse your recent clipboard entries. Select one to copy it back to the clipboard. Flare can read from installed clipboard history tools (for example `wl-clipboard-history` or `cliphist`) and falls back to its local history file when those are unavailable.
-- **Sudo plugin**: Launch applications with elevated privileges (e.g., `sudo gparted`). Includes a secure, terminal-style password prompt.
-- **Help plugin**: Type `-` to list available extension commands.
+ - **Sudo plugin**: Launch applications with elevated privileges (e.g., `sudo gparted`). Includes a secure, terminal-style password prompt (implemented as an extension that requests authentication).
+ - **Help plugin**: Type `-` to list available extension commands; the help view is now provided by the help extension as a regular extension list (no special-case in the app core).
 - **Keyboard-centric**: Designed for efficiency with intuitive keybindings.
 - **Highly customizable**: Extensive configuration options for appearance and behavior.
 
@@ -23,7 +23,7 @@ Flare is a customizable, lightweight, terminal-based application launcher for Li
 
 Flare is designed to be fast and lightweight while being extensible at runtime. Instead of requiring compile-time feature flags, Flare supports a runtime plugin system:
 
-- Built-in extensions (Calculator, Symbols, Files, Sudo, Help, Clipboard) are shipped with the binary and activate based on `~/.config/flare/extention_config.toml`.
+ - Built-in extensions (Calculator, Symbols, Files, Sudo, Help, Clipboard, Runner, Volume) are shipped with the binary and activate based on `~/.config/flare/extention_config.toml`.
 - External extensions can be added without recompiling: drop an executable into `~/.config/flare/extensions/` and Flare will detect it on startup.
 
 A plugin binary should implement two simple interfaces the launcher expects:
@@ -58,7 +58,7 @@ fi
 echo ""
 ```
 
-After you place the executable, restart Flare; the plugin will show up in the Help menu (`-`) and respond to its trigger. You can test it manually:
+After you place the executable, restart Flare; the plugin will show up in the runtime extension registry and respond to its trigger. You can test it manually:
 
 ```bash
 ~/.config/flare/extensions/hello --info
@@ -66,9 +66,15 @@ After you place the executable, restart Flare; the plugin will show up in the He
 ```
 
 Notes:
-- Flare still provides some helpful internal utilities (history, clipboard helpers, file expansion); internal extensions use those directly. External plugins are standalone processes and communicate via `--info` / `--query`.
+- Flare provides internal utilities (history, clipboard helpers, file expansion) used by built-in extensions. External plugins are standalone processes and communicate via `--info` / `--query`.
+- The `--info` JSON object may include an optional `query_example` field in addition to `name`, `description`, and `trigger`. `query_example` helps populate the search bar when an extension's command is selected from a list.
+
+Built-in runtime extensions (recent additions)
+
+- Runner (`>`): prefix a query with `>` to run an arbitrary shell command (for example `> echo hello`). Selecting the item executes the command via `sh -c` and Flare exits.
+- Volume (`v!`): control system audio. Type `v!` to open the volume menu, or `v! -h` to show available commands. Supported operations include `v! +N`, `v! -N`, `v! N`, `v! mute`, and `v! devices`. Flare auto-detects available backends (`wpctl` for PipeWire, `pactl` for PulseAudio, or `amixer` for ALSA) and issues the corresponding commands.
+- The host understands several extension result shapes: single-result text, file lists, and structured lists where each item can include a display title and a value. If you need list+action semantics for an external plugin, return a structured output and update the registry parser accordingly.
 - Keep your plugin fast and stdout-friendly; Flare runs the plugin synchronously while evaluating the query.
-- If you want richer integration (structured results, multiple fields), extend the small protocol above and update both your plugin and the Flare code that parses plugin output.
 
 # Installation
 

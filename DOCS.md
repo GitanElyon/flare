@@ -210,6 +210,7 @@ prefer-external-history-tools = true
 - `symbols.trigger`: Trigger for symbol picker mode. Defaults to `.`.
 - `help.trigger`: Trigger for command/help list. Defaults to `-`.
 - `clipboard.trigger`: Trigger for clipboard history mode. Defaults to `+`.
+- `query_example` (optional): Extensions can provide an example query string in their metadata to help populate the search bar when users select the extension from a list (for example the help extension provides sample queries like `sudo ` or `~/`).
 - `clipboard.prefer-external-history-tools`: Prefer `wl-clipboard-history`, `cliphist`, or `copyq` before falling back to Flare local clipboard history.
 
 Supported IDs:
@@ -219,8 +220,22 @@ Supported IDs:
 - `files`
 - `sudo`
 - `help`
+ - `runner`
+ - `volume`
 
 Aliases are accepted for compatibility (`calc`, `icon-picker`, `directory-browser`, etc.).
+
+### Runner (extension id: `runner`)
+
+- **Trigger:** `>` — prefix a query with `>` to run an arbitrary shell command. Example: `> echo hello`.
+- Pressing Enter executes the command via `sh -c` and the launcher exits (this extension returns an `ExecuteAndExit` action).
+
+### Volume (extension id: `volume`)
+
+- **Trigger:** `v!` — open the volume control menu.
+- **Help:** `v! -h` shows the available volume commands.
+- **Commands:** `v! +N` (increase by N%), `v! -N` (decrease by N%), `v! N` (set level to N%), `v! mute` (toggle mute), `v! devices` (list/switch outputs).
+- Flare attempts to detect available audio tooling in this order: `wpctl` (PipeWire), `pactl` (PulseAudio), `amixer` (ALSA). For each backend Flare issues appropriate commands so the same `v!` verbs work across systems.
 
 Clipboard extension notes:
 - Flare will try installed clipboard history tools first (`wl-clipboard-history`, `cliphist`, `copyq`).

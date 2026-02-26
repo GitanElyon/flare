@@ -534,6 +534,47 @@ impl App {
                             let value = item.value.clone();
                             self.insert_search_text(&value);
                         }
+                        ExtensionListAction::ExecuteAndExit => {
+                            let cmd_str = item.value.clone();
+                            if !cmd_str.is_empty() {
+                                let mut command = Command::new("sh");
+                                command
+                                    .args(["-c", &cmd_str])
+                                    .stdin(Stdio::null())
+                                    .stdout(Stdio::null())
+                                    .stderr(Stdio::null());
+                                unsafe {
+                                    command.pre_exec(|| {
+                                        libc::setsid();
+                                        libc::signal(libc::SIGHUP, libc::SIG_IGN);
+                                        Ok(()) as io::Result<()>
+                                    });
+                                }
+                                match command.spawn() {
+                                    Ok(_) => self.should_quit = true,
+                                    Err(e) => self.status_message = Some(format!("Failed to run: {}", e)),
+                                }
+                            }
+                        }
+                        ExtensionListAction::ExecuteAndRefresh => {
+                            let cmd_str = item.value.clone();
+                            let saved_index = self.list_state.selected();
+                            if !cmd_str.is_empty() {
+                                let _ = Command::new("sh")
+                                    .args(["-c", &cmd_str])
+                                    .stdout(Stdio::null())
+                                    .stderr(Stdio::null())
+                                    .output();
+                            }
+                            self.update_filter();
+                            // Restore cursor position after refresh (clamped to new list length)
+                            if let Some(idx) = saved_index {
+                                let new_len = self.filtered_extension_items.len();
+                                if new_len > 0 {
+                                    self.list_state.select(Some(idx.min(new_len - 1)));
+                                }
+                            }
+                        }
                         ExtensionListAction::None => {}
                     }
                 }
