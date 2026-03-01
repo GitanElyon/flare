@@ -16,6 +16,7 @@ pub struct ExtensionMetadata {
 pub struct ExtensionListItem {
     pub title: String,
     pub value: String,
+    pub action: Option<ExtensionListAction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

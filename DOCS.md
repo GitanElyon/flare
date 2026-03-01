@@ -222,8 +222,9 @@ Supported IDs:
 - `help`
  - `runner`
  - `volume`
+ - `bluetooth`
 
-Aliases are accepted for compatibility (`calc`, `icon-picker`, `directory-browser`, etc.).
+Aliases are accepted for compatibility (`calc`, `icon-picker`, `directory-browser`, `bt`, etc.).
 
 ### Runner (extension id: `runner`)
 
@@ -236,6 +237,13 @@ Aliases are accepted for compatibility (`calc`, `icon-picker`, `directory-browse
 - **Help:** `v! -h` shows the available volume commands.
 - **Commands:** `v! +N` (increase by N%), `v! -N` (decrease by N%), `v! N` (set level to N%), `v! mute` (toggle mute), `v! devices` (list/switch outputs).
 - Flare attempts to detect available audio tooling in this order: `wpctl` (PipeWire), `pactl` (PulseAudio), `amixer` (ALSA). For each backend Flare issues appropriate commands so the same `v!` verbs work across systems.
+
+### Bluetooth (extension id: `bluetooth`)
+
+- **Trigger:** `b!` — open the bluetooth manager.
+- **Help:** `b! -h` shows the available bluetooth commands.
+- **Commands:** `b! power on/off`, `b! scan on/off`, or interact with a specific device via `b! <MAC>`.
+- Allows querying device connection and pair statuses, running operations like Connect, Pair, Disconnect, Trust, and Remove from an easy to use sub-menu. Powered by `bluetoothctl` under the hood.
 
 Clipboard extension notes:
 - Flare will try installed clipboard history tools first (`wl-clipboard-history`, `cliphist`, `copyq`).

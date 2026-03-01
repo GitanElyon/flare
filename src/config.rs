@@ -108,6 +108,7 @@ fn canonical_extension_id(id: &str) -> &str {
         "clip" | "clipboard-history" => "clipboard",
         "run" | "cmd" | "shell" | "exec" => "runner",
         "vol" | "audio" | "speaker" | "sound" => "volume",
+        "bt" | "bluez" => "bluetooth",
         other => other,
     }
 }

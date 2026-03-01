@@ -22,7 +22,7 @@ impl FlareExtension for Runner {
 
         let (items, action) = if cmd.is_empty() {
             (
-                vec![ExtensionListItem {
+                vec![ExtensionListItem { action: None,
                     title: "  Type a command to run\u{2026}".to_string(),
                     value: String::new(),
                 }],
@@ -30,7 +30,7 @@ impl FlareExtension for Runner {
             )
         } else {
             (
-                vec![ExtensionListItem {
+                vec![ExtensionListItem { action: None,
                     title: format!("  \u{25b6}  Run: {}", cmd),
                     value: cmd,
                 }],

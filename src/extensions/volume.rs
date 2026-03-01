@@ -284,7 +284,7 @@ impl FlareExtension for Volume {
         let Some(backend) = detect_backend() else {
             return ExtensionResult::List {
                 title: " Volume ".to_string(),
-                items: vec![ExtensionListItem {
+                items: vec![ExtensionListItem { action: None,
                     title: "  No audio backend found (requires wpctl, pactl, or amixer)".to_string(),
                     value: String::new(),
                 }],
@@ -299,13 +299,13 @@ impl FlareExtension for Volume {
             return ExtensionResult::List {
                 title: " Volume Help ".to_string(),
                 items: vec![
-                    ExtensionListItem { title: "  v!           Open volume menu".to_string(),                       value: String::new() },
-                    ExtensionListItem { title: "  v! -h        Show this help".to_string(),                         value: String::new() },
-                    ExtensionListItem { title: "  v! +N        Increase volume by N%   (e.g. v! +10)".to_string(), value: String::new() },
-                    ExtensionListItem { title: "  v! -N        Decrease volume by N%   (e.g. v! -5)".to_string(),  value: String::new() },
-                    ExtensionListItem { title: "  v! N         Set volume to N%        (e.g. v! 75)".to_string(),  value: String::new() },
-                    ExtensionListItem { title: "  v! mute      Toggle mute".to_string(),                            value: String::new() },
-                    ExtensionListItem { title: "  v! devices   List and switch output devices".to_string(),         value: String::new() },
+                    ExtensionListItem { action: None, title: "  v!           Open volume menu".to_string(),                       value: String::new() },
+                    ExtensionListItem { action: None, title: "  v! -h        Show this help".to_string(),                         value: String::new() },
+                    ExtensionListItem { action: None, title: "  v! +N        Increase volume by N%   (e.g. v! +10)".to_string(), value: String::new() },
+                    ExtensionListItem { action: None, title: "  v! -N        Decrease volume by N%   (e.g. v! -5)".to_string(),  value: String::new() },
+                    ExtensionListItem { action: None, title: "  v! N         Set volume to N%        (e.g. v! 75)".to_string(),  value: String::new() },
+                    ExtensionListItem { action: None, title: "  v! mute      Toggle mute".to_string(),                            value: String::new() },
+                    ExtensionListItem { action: None, title: "  v! devices   List and switch output devices".to_string(),         value: String::new() },
                 ],
                 action: ExtensionListAction::None,
             };
@@ -326,7 +326,7 @@ impl FlareExtension for Volume {
             let label = if muted_flag { "  Unmute" } else { "  Mute" };
             return ExtensionResult::List {
                 title,
-                items: vec![ExtensionListItem {
+                items: vec![ExtensionListItem { action: None,
                     title: label.to_string(),
                     value: mute_toggle_cmd(&backend),
                 }],
@@ -340,7 +340,7 @@ impl FlareExtension for Volume {
             if sinks.is_empty() {
                 return ExtensionResult::List {
                     title: " Volume - Output Devices ".to_string(),
-                    items: vec![ExtensionListItem {
+                    items: vec![ExtensionListItem { action: None,
                         title: "  No output devices found".to_string(),
                         value: String::new(),
                     }],
@@ -351,7 +351,7 @@ impl FlareExtension for Volume {
                 .into_iter()
                 .map(|(id, name)| {
                     let cmd = set_default_sink_cmd(&backend, &id);
-                    ExtensionListItem { title: format!("  {}", name), value: cmd }
+                    ExtensionListItem { action: None, title: format!("  {}", name), value: cmd }
                 })
                 .filter(|item| !item.value.is_empty())
                 .collect();
@@ -367,7 +367,7 @@ impl FlareExtension for Volume {
             if let Ok(delta) = rest.parse::<u32>() {
                 return ExtensionResult::List {
                     title,
-                    items: vec![ExtensionListItem {
+                    items: vec![ExtensionListItem { action: None,
                         title: format!("  Increase volume by {}%", delta),
                         value: adjust_volume_cmd(&backend, delta as i32),
                     }],
@@ -382,7 +382,7 @@ impl FlareExtension for Volume {
             if let Ok(delta) = rest.parse::<u32>() {
                 return ExtensionResult::List {
                     title,
-                    items: vec![ExtensionListItem {
+                    items: vec![ExtensionListItem { action: None,
                         title: format!("  Decrease volume by {}%", delta),
                         value: adjust_volume_cmd(&backend, -(delta as i32)),
                     }],
@@ -396,7 +396,7 @@ impl FlareExtension for Volume {
             let clamped = target.min(150);
             return ExtensionResult::List {
                 title,
-                items: vec![ExtensionListItem {
+                items: vec![ExtensionListItem { action: None,
                     title: format!("  Set volume to {}%", clamped),
                     value: set_volume_cmd(&backend, clamped),
                 }],
@@ -408,18 +408,18 @@ impl FlareExtension for Volume {
         let mute_label = if muted_flag { "  Unmute" } else { "  Mute" };
         let items = vec![
             // Status line at top — bar lives here (list item), not in the title
-            ExtensionListItem {
+            ExtensionListItem { action: None,
                 title: status_line(current_vol, muted),
                 value: String::new(),
             },
-            ExtensionListItem { title: "  Volume Up  (+5%)".to_string(),  value: adjust_volume_cmd(&backend, 5)   },
-            ExtensionListItem { title: "  Volume Down (-5%)".to_string(), value: adjust_volume_cmd(&backend, -5)  },
-            ExtensionListItem { title: mute_label.to_string(),            value: mute_toggle_cmd(&backend)         },
-            ExtensionListItem { title: "  Set to 25%".to_string(),        value: set_volume_cmd(&backend, 25)      },
-            ExtensionListItem { title: "  Set to 50%".to_string(),        value: set_volume_cmd(&backend, 50)      },
-            ExtensionListItem { title: "  Set to 75%".to_string(),        value: set_volume_cmd(&backend, 75)      },
-            ExtensionListItem { title: "  Set to 100%".to_string(),       value: set_volume_cmd(&backend, 100)     },
-            ExtensionListItem { title: "  Output Devices (v! devices)".to_string(), value: String::new()           },
+            ExtensionListItem { action: None, title: "  Volume Up  (+5%)".to_string(),  value: adjust_volume_cmd(&backend, 5)   },
+            ExtensionListItem { action: None, title: "  Volume Down (-5%)".to_string(), value: adjust_volume_cmd(&backend, -5)  },
+            ExtensionListItem { action: None, title: mute_label.to_string(),            value: mute_toggle_cmd(&backend)         },
+            ExtensionListItem { action: None, title: "  Set to 25%".to_string(),        value: set_volume_cmd(&backend, 25)      },
+            ExtensionListItem { action: None, title: "  Set to 50%".to_string(),        value: set_volume_cmd(&backend, 50)      },
+            ExtensionListItem { action: None, title: "  Set to 75%".to_string(),        value: set_volume_cmd(&backend, 75)      },
+            ExtensionListItem { action: None, title: "  Set to 100%".to_string(),       value: set_volume_cmd(&backend, 100)     },
+            ExtensionListItem { action: None, title: "  Output Devices (v! devices)".to_string(), value: String::new()           },
         ];
 
         ExtensionResult::List {

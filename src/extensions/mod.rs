@@ -1,4 +1,5 @@
 pub mod api;
+pub mod bluetooth;
 pub mod calculator;
 pub mod clipboard;
 pub mod files;
@@ -87,6 +88,10 @@ impl ExtensionRegistry {
 
         if config.extensions.is_enabled("volume") {
             extensions.push(Box::new(volume::Volume));
+        }
+
+        if config.extensions.is_enabled("bluetooth") {
+            extensions.push(Box::new(bluetooth::Bluetooth));
         }
 
         // Load external plugins

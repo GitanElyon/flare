@@ -29,7 +29,7 @@ impl FlareExtension for ClipboardExt {
         let items = filter_clipboard(query, config, &entries)
             .into_iter()
             .map(|text| {
-                ExtensionListItem {
+                ExtensionListItem { action: None,
                     title: single_line_preview(&text),
                     value: text,
                 }

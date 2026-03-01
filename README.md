@@ -23,7 +23,7 @@ Flare is a customizable, lightweight, terminal-based application launcher for Li
 
 Flare is designed to be fast and lightweight while being extensible at runtime. Instead of requiring compile-time feature flags, Flare supports a runtime plugin system:
 
- - Built-in extensions (Calculator, Symbols, Files, Sudo, Help, Clipboard, Runner, Volume) are shipped with the binary and activate based on `~/.config/flare/extention_config.toml`.
+ - Built-in extensions (Calculator, Symbols, Files, Sudo, Help, Clipboard, Runner, Volume, Bluetooth) are shipped with the binary and activate based on `~/.config/flare/extention_config.toml`.
 - External extensions can be added without recompiling: drop an executable into `~/.config/flare/extensions/` and Flare will detect it on startup.
 
 A plugin binary should implement two simple interfaces the launcher expects:
@@ -73,6 +73,7 @@ Built-in runtime extensions (recent additions)
 
 - Runner (`>`): prefix a query with `>` to run an arbitrary shell command (for example `> echo hello`). Selecting the item executes the command via `sh -c` and Flare exits.
 - Volume (`v!`): control system audio. Type `v!` to open the volume menu, or `v! -h` to show available commands. Supported operations include `v! +N`, `v! -N`, `v! N`, `v! mute`, and `v! devices`. Flare auto-detects available backends (`wpctl` for PipeWire, `pactl` for PulseAudio, or `amixer` for ALSA) and issues the corresponding commands.
+- Bluetooth (`b!`): easily manage Bluetooth connections using `bluetoothctl`. Type `b!` to list devices, toggle power, or toggle scanning. Select a device to view device specific options like Connect, Disconnect, Pair, Trust, and Forget.
 - The host understands several extension result shapes: single-result text, file lists, and structured lists where each item can include a display title and a value. If you need list+action semantics for an external plugin, return a structured output and update the registry parser accordingly.
 - Keep your plugin fast and stdout-friendly; Flare runs the plugin synchronously while evaluating the query.
 

@@ -24,7 +24,7 @@ impl FlareExtension for Symbols {
             .into_iter()
             .map(|(name, symbol, is_favorite)| {
                 let prefix = if is_favorite { "★ " } else { "" };
-                ExtensionListItem {
+                ExtensionListItem { action: None,
                     title: format!("{}{} {}", prefix, symbol, name),
                     value: symbol,
                 }

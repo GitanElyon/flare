@@ -508,7 +508,8 @@ impl App {
         if self.mode == AppMode::ExtensionList {
             if let Some(i) = self.list_state.selected() {
                 if let Some(item) = self.filtered_extension_items.get(i) {
-                    match self.extension_action {
+                    let active_action = item.action.as_ref().unwrap_or(&self.extension_action);
+                    match active_action {
                         ExtensionListAction::CopyToClipboardAndExit => {
                             let text = item.value.clone();
                             use std::io::Write;

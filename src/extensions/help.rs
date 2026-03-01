@@ -15,7 +15,7 @@ impl FlareExtension for HelpExtension {
     fn process(&self, _query: &str, config: &AppConfig, registry: &crate::extensions::ExtensionRegistry) -> ExtensionResult {
         let items = available_commands(config, registry)
             .into_iter()
-            .map(|cmd| ExtensionListItem {
+            .map(|cmd| ExtensionListItem { action: None,
                 title: format!("{:10}  {:10}  {}", cmd.trigger, cmd.name, cmd.description),
                 value: cmd.query_example,
             })
