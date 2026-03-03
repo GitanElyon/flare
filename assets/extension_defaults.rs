@@ -15,4 +15,7 @@ ExtensionFileConfig {
         trigger: String::from("+"),
         prefer_external_history_tools: true,
     },
+    battery: BatteryExtensionConfig {
+        trigger: String::from(":"),
+    },
 }

@@ -1,4 +1,5 @@
 pub mod api;
+pub mod battery;
 pub mod bluetooth;
 pub mod calculator;
 pub mod clipboard;
@@ -92,6 +93,10 @@ impl ExtensionRegistry {
 
         if config.extensions.is_enabled("bluetooth") {
             extensions.push(Box::new(bluetooth::Bluetooth));
+        }
+
+        if config.extensions.is_enabled("battery") {
+            extensions.push(Box::new(battery::Battery));
         }
 
         // Load external plugins

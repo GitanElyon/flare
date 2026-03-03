@@ -223,8 +223,9 @@ Supported IDs:
  - `runner`
  - `volume`
  - `bluetooth`
+ - `battery`
 
-Aliases are accepted for compatibility (`calc`, `icon-picker`, `directory-browser`, `bt`, etc.).
+Aliases are accepted for compatibility (`calc`, `icon-picker`, `directory-browser`, `bt`, `bat`, `power`, etc.).
 
 ### Runner (extension id: `runner`)
 
@@ -244,6 +245,11 @@ Aliases are accepted for compatibility (`calc`, `icon-picker`, `directory-browse
 - **Help:** `b! -h` shows the available bluetooth commands.
 - **Commands:** `b! power on/off`, `b! scan on/off`, or interact with a specific device via `b! <MAC>`.
 - Allows querying device connection and pair statuses, running operations like Connect, Pair, Disconnect, Trust, and Remove from an easy to use sub-menu. Powered by `bluetoothctl` under the hood.
+
+### Battery (extension id: `battery`)
+
+- **Trigger:** `:` — show battery status and information.
+- Shows current charge percentage, charging status (Charging/Discharging), estimated time remaining or time to full charge, power consumption (in Watts), and battery cycle count if available. Reads information directly from `/sys/class/power_supply/` on Linux.
 
 Clipboard extension notes:
 - Flare will try installed clipboard history tools first (`wl-clipboard-history`, `cliphist`, `copyq`).

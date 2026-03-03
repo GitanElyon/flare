@@ -23,6 +23,7 @@ AppConfig {
         symbol_search_trigger: extension_defaults.symbols.trigger.clone(),
         help_search_trigger: extension_defaults.help.trigger.clone(),
         clipboard_search_trigger: extension_defaults.clipboard.trigger.clone(),
+        battery_search_trigger: extension_defaults.battery.trigger.clone(),
         clipboard_prefer_external_history_tools: extension_defaults
             .clipboard
             .prefer_external_history_tools,

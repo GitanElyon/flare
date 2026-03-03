@@ -38,6 +38,13 @@ pub struct ExtensionFileConfig {
     pub symbols: SymbolsExtensionConfig,
     pub help: HelpExtensionConfig,
     pub clipboard: ClipboardExtensionConfig,
+    pub battery: BatteryExtensionConfig,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct BatteryExtensionConfig {
+    pub trigger: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,7 +76,7 @@ pub struct ClipboardExtensionConfig {
 
 pub mod extension_defaults {
     use super::{
-        CalculatorExtensionConfig, ClipboardExtensionConfig, ExtensionFileConfig,
+        BatteryExtensionConfig, CalculatorExtensionConfig, ClipboardExtensionConfig, ExtensionFileConfig,
         HelpExtensionConfig, SymbolsExtensionConfig,
     };
 
@@ -109,6 +116,7 @@ fn canonical_extension_id(id: &str) -> &str {
         "run" | "cmd" | "shell" | "exec" => "runner",
         "vol" | "audio" | "speaker" | "sound" => "volume",
         "bt" | "bluez" => "bluetooth",
+        "bat" | "power" | "energy" => "battery",
         other => other,
     }
 }
@@ -173,6 +181,7 @@ impl AppConfig {
         self.features.symbol_search_trigger = extension_file.symbols.trigger;
         self.features.help_search_trigger = extension_file.help.trigger;
         self.features.clipboard_search_trigger = extension_file.clipboard.trigger;
+        self.features.battery_search_trigger = extension_file.battery.trigger;
         self.features.clipboard_prefer_external_history_tools =
             extension_file.clipboard.prefer_external_history_tools;
     }
@@ -417,6 +426,8 @@ pub struct FeaturesConfig {
     #[serde(skip)]
     pub clipboard_search_trigger: String,
     #[serde(skip)]
+    pub battery_search_trigger: String,
+    #[serde(skip)]
     pub clipboard_prefer_external_history_tools: bool,
     #[serde(skip)]
     pub replace_calc_symbols: bool,
@@ -437,6 +448,7 @@ impl Default for FeaturesConfig {
             symbol_search_trigger: String::from("."),
             help_search_trigger: String::from("-"),
             clipboard_search_trigger: String::from("+"),
+            battery_search_trigger: String::from(":"),
             clipboard_prefer_external_history_tools: true,
             replace_calc_symbols: false,
             fancy_numbers: false,
