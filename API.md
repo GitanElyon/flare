@@ -1,56 +1,51 @@
-# Flare Extension API (Light Reference)
+# Flare Core API
 
-This project uses a runtime extension registry. Every extension implements `FlareExtension` and returns an `ExtensionResult` for the current query.
+This document describes the base Flare launcher internals (`core`) and how plugin packs integrate with it.
 
-## Core Trait
+Plugin scripts and community catalog are documented in `plugins/` and in:
 
-Defined in [src/extensions/api.rs](src/extensions/api.rs).
+- https://github.com/gitanelyon/awesome-flare
 
-- `metadata(&self, config: &AppConfig) -> ExtensionMetadata`
-- `should_handle(&self, query: &str, config: &AppConfig) -> bool`
-- `process(&self, query: &str, config: &AppConfig, registry: &ExtensionRegistry) -> ExtensionResult`
+## Core modules
 
-Flare also exposes several optional/default methods that extensions may implement to integrate more tightly with the host:
+- `src/main.rs`
+  - Terminal lifecycle, event loop, key handling.
+- `src/app.rs`
+  - App state machine, filtering, file explorer, launch argument handling, command spawning.
+- `src/ui.rs`
+  - Rendering and list presentation.
+- `src/config.rs`
+  - `config.toml` loading and defaults.
+- `src/history.rs`
+  - App usage/favorites history persistence.
 
-- `strip_prefix(&self, query: &str, config: &AppConfig) -> Option<(String, Vec<String>)>` — return a `(stripped_query, prefix_args)` pair when an extension claims a prefix (for example `sudo ...`), otherwise `None`.
-- `requires_auth(&self, query: &str, config: &AppConfig) -> bool` — return `true` when a query requires authentication; the host will enter an authentication mode and may delegate launching back to the extension.
-- `expand_path(&self, path: &str) -> Option<String>` — optional path-expansion helper (tilde expansion, etc.); return `None` to use the host default.
-- `authenticate_and_launch(&self, password: &str, cmd: &str, args: &[String], prefix_args: &[String]) -> AuthResult` — called by the host to authenticate and launch privileged commands; returns `AuthResult::Success`, `AuthResult::AuthFailed` or `AuthResult::LaunchError(String)`.
+## Configuration surface
 
-## Result Types
+Flare reads:
 
-`ExtensionResult` currently supports:
+- `~/.config/flare/config.toml` (UI + launcher behavior)
+- `~/.config/flare/scripts/alias.toml` (optional script/trigger mapping)
 
-- `Single { query, result }`
-  - Used for single-value views (for example calculator output).
-- `List { title, items, action }`
-  - Generic extension list view.
-  - `items` is `Vec<ExtensionListItem { title, value }>`.
-  - `action` tells the app what to do when the user presses Enter.
-- `Files(Vec<String>)`
-  - File-selection mode list.
-- `None`
-  - No match or no output.
+Important toggles in `features`:
 
-Note: help/command lists are implemented as regular extensions that return a `List` (there is no special `Help` variant any more).
+- `enable-file-explorer` (default: `true`)
+- `enable-launch-args` (default: `true`)
+- `enable-auto-complete` (default: `true`)
+- `dirs-first` (default: `true`)
 
-## List Actions
+## File explorer behavior
 
-`ExtensionListAction`:
+Implemented in `App::update_filter` + `App::list_completions`:
 
-- `CopyToClipboardAndExit`
-- `SetSearchQuery` — set the search query to the selected item's `value` and rerun filtering
-- `AppendToQuery` — append the selected item's `value` to the current search query
-- `None`
+- Path queries beginning with `/`, `~/`, `./`, or `../` enter file-selection mode.
+- Tab completion in file-selection mode inserts selected paths.
+- If selected path is executable, Flare runs it directly; otherwise it opens via `xdg-open`.
 
-The app executes the `action` returned by an extension generically; this keeps module-specific launch logic out of the app event loop and lets extensions express intent declaratively.
+## Plugin pack integration
 
-## Built-in vs External Extensions
+`core` is the host launcher.
 
-- Built-in extensions are registered in [src/extensions/mod.rs](src/extensions/mod.rs).
-- External executable extensions are discovered in `~/.config/flare/extensions/` and queried using:
-  - `--info` (JSON metadata)
-  - `--query <text>` (result payload)
-- The `--info` JSON should at minimum include `name`, `description`, and `trigger`. It may also include an optional `query_example` field that helps populate the search bar when the extension is chosen from a list.
+- Plugin scripts are expected under `~/.config/flare/scripts/`.
+- Script aliases are loaded from `~/.config/flare/scripts/alias.toml`.
 
-External extension outputs are treated as single-result text by default. If you want typed list/actions for external extensions, return a small structured payload from `--query` and update the registry parser accordingly (the registry supports `Files` and `List` result shapes for built-in extensions).
+For plugin implementation details and curated plugins, use the `awesome-flare` repo.
