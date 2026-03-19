@@ -14,6 +14,8 @@ Flare is a terminal-first Linux application launcher built with Rust + Ratatui.
 
 Flare core is the host runtime. Plugins are script-based and live in `~/.config/flare/scripts/`. Plugins can define custom triggers, query handling, and output formatting via a simple line-oriented protocol. 
 
+Scripts can be executable files (any language) or extension-based scripts run through supported interpreters (`.sh`, `.bash`, `.zsh`, `.fish`, `.py`, `.pl`, `.rb`, `.js`, `.lua`).
+
 The plugin ecosystem is cataloged in `awesome-flare`:
 - https://github.com/gitanelyon/awesome-flare
 

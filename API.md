@@ -46,6 +46,7 @@ Implemented in `App::update_filter` + `App::list_completions`:
 `core` is the host launcher.
 
 - Plugin scripts are expected under `~/.config/flare/scripts/`.
+- Scripts may be executable files (run directly) or known extension files run via interpreter (`.sh`, `.bash`, `.zsh`, `.fish`, `.py`, `.pl`, `.rb`, `.js`, `.lua`).
 - Script aliases are loaded from `~/.config/flare/scripts/alias.toml`.
 
 For plugin implementation details and curated plugins, use the `awesome-flare` repo.

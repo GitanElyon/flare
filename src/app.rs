@@ -46,8 +46,10 @@ pub struct ScriptItem {
 #[derive(Debug, Clone)]
 struct ScriptPlugin {
     id: String,
+    file_id: String,
     path: PathBuf,
     trigger: Option<String>,
+    interpreter: Option<&'static str>,
 }
 
 pub struct App {
@@ -614,6 +616,38 @@ impl App {
         Some(dir)
     }
 
+    fn script_interpreter_for_extension(ext: &str) -> Option<&'static str> {
+        match ext {
+            "sh" => Some("sh"),
+            "bash" => Some("bash"),
+            "zsh" => Some("zsh"),
+            "fish" => Some("fish"),
+            "py" => Some("python3"),
+            "pl" => Some("perl"),
+            "rb" => Some("ruby"),
+            "js" => Some("node"),
+            "lua" => Some("lua"),
+            _ => None,
+        }
+    }
+
+    fn normalize_alias_key(key: &str) -> String {
+        let normalized = key.trim();
+        if normalized.is_empty() {
+            return String::new();
+        }
+
+        let Some((base, ext)) = normalized.rsplit_once('.') else {
+            return normalized.to_string();
+        };
+
+        if Self::script_interpreter_for_extension(&ext.to_ascii_lowercase()).is_some() {
+            return base.to_string();
+        }
+
+        normalized.to_string()
+    }
+
     fn load_scripts() -> Vec<ScriptPlugin> {
         let Some(dir) = Self::scripts_dir() else {
             return Vec::new();
@@ -628,30 +662,48 @@ impl App {
 
         for entry in entries.flatten() {
             let path = entry.path();
-            let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
-                continue;
-            };
-            if ext != "sh" {
-                continue;
-            }
-
             let Ok(meta) = entry.metadata() else {
                 continue;
             };
-            if meta.permissions().mode() & 0o111 == 0 {
+
+            let extension = path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| ext.to_ascii_lowercase());
+            let interpreter = extension
+                .as_deref()
+                .and_then(Self::script_interpreter_for_extension);
+            let is_executable = meta.permissions().mode() & 0o111 != 0;
+
+            if !is_executable && interpreter.is_none() {
                 continue;
             }
 
-            let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+            let id_source = path
+                .file_stem()
+                .or_else(|| path.file_name())
+                .and_then(|value| value.to_str());
+            let Some(stem) = id_source else {
                 continue;
             };
             let id = stem.to_string();
+            let file_id = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or(stem)
+                .to_string();
             let trigger = aliases.get(stem).cloned();
 
-            scripts.push(ScriptPlugin { id, path, trigger });
+            scripts.push(ScriptPlugin {
+                id,
+                file_id,
+                path,
+                trigger,
+                interpreter,
+            });
         }
 
-        scripts.sort_by(|a, b| a.id.cmp(&b.id));
+        scripts.sort_by(|a, b| a.id.cmp(&b.id).then_with(|| a.file_id.cmp(&b.file_id)));
         scripts
     }
 
@@ -693,7 +745,7 @@ impl App {
 
             match value {
                 toml::Value::String(trigger) => {
-                    let normalized = full_key.trim().trim_end_matches(".sh").to_string();
+                    let normalized = Self::normalize_alias_key(&full_key);
                     if !normalized.is_empty() {
                         aliases.insert(normalized, trigger.trim().to_string());
                     }
@@ -736,12 +788,37 @@ impl App {
 
         if matched.is_none() {
             for script in &self.scripts {
+                if query == script.file_id {
+                    matched = Some((script.clone(), String::new()));
+                    break;
+                }
+
+                if let Some(rest) = query.strip_prefix(&format!("{} ", script.file_id)) {
+                    matched = Some((script.clone(), rest.trim_start().to_string()));
+                    break;
+                }
+            }
+        }
+
+        if matched.is_none() {
+            let mut stem_counts: HashMap<&str, usize> = HashMap::new();
+            for script in &self.scripts {
+                *stem_counts.entry(script.id.as_str()).or_insert(0) += 1;
+            }
+
+            for script in &self.scripts {
                 if query == script.id {
+                    if stem_counts.get(script.id.as_str()).copied().unwrap_or(0) > 1 {
+                        continue;
+                    }
                     matched = Some((script.clone(), String::new()));
                     break;
                 }
 
                 if let Some(rest) = query.strip_prefix(&format!("{} ", script.id)) {
+                    if stem_counts.get(script.id.as_str()).copied().unwrap_or(0) > 1 {
+                        continue;
+                    }
                     matched = Some((script.clone(), rest.trim_start().to_string()));
                     break;
                 }
@@ -756,7 +833,7 @@ impl App {
         self.filtered_files.clear();
         self.mode = AppMode::ScriptResults;
 
-        match self.run_script(&script.path, &payload) {
+        match self.run_script(&script, &payload) {
             Ok((title, items)) => {
                 self.script_title = title.or_else(|| Some(format!(" {} ", script.id)));
                 self.script_items = items;
@@ -775,8 +852,16 @@ impl App {
         true
     }
 
-    fn run_script(&self, path: &Path, payload: &str) -> Result<(Option<String>, Vec<ScriptItem>), String> {
-        let output = Command::new(path)
+    fn run_script(&self, script: &ScriptPlugin, payload: &str) -> Result<(Option<String>, Vec<ScriptItem>), String> {
+        let mut command = if let Some(interpreter) = script.interpreter {
+            let mut command = Command::new(interpreter);
+            command.arg(&script.path);
+            command
+        } else {
+            Command::new(&script.path)
+        };
+
+        let output = command
             .arg(payload)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
