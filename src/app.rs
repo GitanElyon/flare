@@ -393,8 +393,12 @@ impl App {
 
         if let Some(i) = self.list_state.selected() {
             if self.mode == AppMode::FileSelection && self.filtered_entries.is_empty() {
-                if let Some(selected_file) = self.filtered_files.get(i).cloned() {
-                    self.open_file(&selected_file);
+                if self.should_use_selected_file_completion() {
+                    if let Some(selected_file) = self.filtered_files.get(i).cloned() {
+                        self.open_file(&selected_file);
+                    }
+                } else if let Some(query_path) = self.current_file_query_path() {
+                    self.open_file(&query_path);
                 }
                 return;
             }
@@ -415,9 +419,11 @@ impl App {
                             let mut current_launch_args = launch_args.clone();
                             
                             if self.mode == AppMode::FileSelection {
-                                if let Some(selected_file) = self.filtered_files.get(i) {
-                                    if let Some(last) = current_launch_args.last_mut() {
-                                        *last = selected_file.clone();
+                                if self.should_use_selected_file_completion() {
+                                    if let Some(selected_file) = self.filtered_files.get(i) {
+                                        if let Some(last) = current_launch_args.last_mut() {
+                                            *last = selected_file.clone();
+                                        }
                                     }
                                 }
                             }
@@ -538,6 +544,33 @@ impl App {
             || query.starts_with("../")
     }
 
+    fn current_file_query_path(&self) -> Option<String> {
+        let query = self.search_query.trim();
+        if query.is_empty() {
+            return None;
+        }
+
+        let path = query
+            .rsplit_once(' ')
+            .map(|(_, tail)| tail)
+            .unwrap_or(query);
+
+        if Self::looks_like_path_query(path) {
+            Some(path.to_string())
+        } else {
+            None
+        }
+    }
+
+    fn should_use_selected_file_completion(&self) -> bool {
+        let Some(path) = self.current_file_query_path() else {
+            return true;
+        };
+
+        let segment_after_last_slash = path.rsplit('/').next().unwrap_or(path.as_str());
+        !segment_after_last_slash.is_empty()
+    }
+
     fn expand_path(&self, path: &str) -> String {
         if path == "~" {
             return std::env::var("HOME").unwrap_or_else(|_| path.to_string());
@@ -561,9 +594,15 @@ impl App {
             .rsplit_once('/')
             .map(|(head, _)| format!("{}/", head))
             .unwrap_or_default();
+        let is_directory_query = expanded_input.ends_with('/') || input_path.is_dir();
 
-        let (dir_path, prefix) = if expanded_input.ends_with('/') || input_path.is_dir() {
-            (input_path.to_path_buf(), String::new())
+        let (dir_path, prefix, display_root) = if is_directory_query {
+            let root = if query_path.ends_with('/') {
+                query_path.to_string()
+            } else {
+                format!("{}/", query_path)
+            };
+            (input_path.to_path_buf(), String::new(), root)
         } else {
             (
                 input_path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf(),
@@ -572,6 +611,7 @@ impl App {
                     .and_then(|name| name.to_str())
                     .unwrap_or_default()
                     .to_string(),
+                query_root,
             )
         };
 
@@ -585,7 +625,7 @@ impl App {
                         return None;
                     }
 
-                    let mut relative = format!("{}{}", query_root, name);
+                    let mut relative = format!("{}{}", display_root, name);
 
                     if entry.path().is_dir() {
                         relative.push('/');
