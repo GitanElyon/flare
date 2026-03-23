@@ -5,7 +5,7 @@ use crate::{
 use ratatui::{
     prelude::*,
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    widgets::{Clear, List, ListItem, Paragraph},
 };
 use std::f32::consts::PI;
 
@@ -145,11 +145,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let list_chunk = chunks[chunk_index];
 
     if let Some(chunk) = search_chunk {
-        let title = if app.mode == AppMode::SymbolSelection {
-            " Symbols "
-        } else {
-            " Search "
-        };
+        let title = " Search ";
         let search_widget = Paragraph::new(app.search_query.as_str())
             .style(config.input.style())
             .block(config.input.block(general, title));
@@ -197,38 +193,14 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let selected_fg_colors = parse_gradient_colors(&config.entry_selected.fg);
     let selected_bg_colors = parse_gradient_colors(&config.entry_selected.bg);
 
-    if app.mode == AppMode::SudoPassword {
-        let block = if config.list.section.is_visible() {
-            let title = config.list.sudo_title.as_deref().unwrap_or(" Authentication ");
-            config.list.section.block_with_title(general, title)
-        } else {
-            Block::default().borders(Borders::ALL).title(" Authentication ")
-        };
-
-        let inner = block.inner(scroll_area);
-        f.render_widget(block, scroll_area);
-        if config.list.section.is_visible() {
-            apply_section_border_colors(f, scroll_area, &config.list.section, general);
-        }
-
-        let mut items: Vec<ListItem> = Vec::new();
-        for log_line in app.sudo_log.iter() {
-            let display = log_line.clone();
-
-            items.push(ListItem::new(Span::raw(display)));
-        }
-
-        let list = List::new(items);
-        f.render_widget(list, inner);
+    let selected_idx = app.list_state.selected();
+    let highlight_symbol = if entry_selected_visible {
+        config.general.highlight_symbol.as_deref().unwrap_or(">> ")
     } else {
-        let selected_idx = app.list_state.selected();
-        let highlight_symbol = if entry_selected_visible {
-            config.general.highlight_symbol.as_deref().unwrap_or(">> ")
-        } else {
-            ""
-        };
+        ""
+    };
 
-        let items: Vec<ListItem> = if app.mode == AppMode::AppSelection {
+    let items: Vec<ListItem> = if app.mode == AppMode::AppSelection {
             app.filtered_entries
                 .iter()
                 .enumerate()
@@ -271,98 +243,12 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     )
                 })
                 .collect()
-        } else if app.mode == AppMode::Calculator {
-            let mut list_items = Vec::new();
-            let mut idx = 0usize;
-            if let Some((expr, result)) = &app.calculator_result {
-                let mut text = if config.features.replace_calc_symbols {
-                    format!("{} = {}", replace_symbols(expr), replace_symbols(result))
-                } else {
-                    format!("{} = {}", expr, result)
-                };
-                if config.features.fancy_numbers {
-                    text = format_fancy(&text);
-                }
-                
-                let mut display_text = aligned_text(&text, text_area_width, config.text.alignment());
-                if entry_selected_visible {
-                    let prefix = if Some(idx) == selected_idx {
-                        highlight_symbol.to_string()
-                    } else {
-                        " ".repeat(highlight_symbol.chars().count())
-                    };
-                    display_text = format!("{}{}", prefix, display_text);
-                }
-                list_items.push(build_list_item(
-                    &display_text,
-                    config,
-                    Some(idx) == selected_idx,
-                    &entry_fg_colors,
-                    &entry_bg_colors,
-                    &selected_fg_colors,
-                    &selected_bg_colors,
-                    config.entry.gradient_angle,
-                    config.entry_selected.gradient_angle,
-                    full_row_width,
-                    normal_entry_style,
-                    entry_style,
-                ));
-                idx += 1;
-            }
-            
-            for entry in &app.math_history.entries {
-                let mut text = if config.features.replace_calc_symbols {
-                    format!("{} = {}", replace_symbols(&entry.expression), replace_symbols(&entry.result))
-                } else {
-                    format!("{} = {}", entry.expression, entry.result)
-                };
-                if config.features.fancy_numbers {
-                    text = format_fancy(&text);
-                }
-                
-                let mut display_text = aligned_text(&text, text_area_width, config.text.alignment());
-                if entry_selected_visible {
-                    let prefix = if Some(idx) == selected_idx {
-                        highlight_symbol.to_string()
-                    } else {
-                        " ".repeat(highlight_symbol.chars().count())
-                    };
-                    display_text = format!("{}{}", prefix, display_text);
-                }
-                list_items.push(build_list_item(
-                    &display_text,
-                    config,
-                    Some(idx) == selected_idx,
-                    &entry_fg_colors,
-                    &entry_bg_colors,
-                    &selected_fg_colors,
-                    &selected_bg_colors,
-                    config.entry.gradient_angle,
-                    config.entry_selected.gradient_angle,
-                    full_row_width,
-                    normal_entry_style,
-                    entry_style,
-                ));
-                idx += 1;
-            }
-            list_items
-        } else if app.mode == AppMode::SymbolSelection {
-            app.filtered_symbols
+        } else if app.mode == AppMode::ScriptResults {
+            app.script_items
                 .iter()
                 .enumerate()
-                .map(|(idx, (name, symbol))| {
-                    if !config.text.is_visible() {
-                        return ListItem::new(Span::raw(""));
-                    }
-
-                    let is_fav = app.history.is_favorite_symbol(name);
-                    let fav_symbol_cfg = config.general.favorite_symbol.as_deref().unwrap_or("★ ");
-                    let empty_prefix = " ".repeat(fav_symbol_cfg.chars().count());
-                    let prefix = if is_fav { fav_symbol_cfg } else { &empty_prefix };
-
-                    let text = format!("{}{} {}", prefix, symbol, name);
-                    let mut display_text = aligned_text(&text, text_area_width, config.text.alignment());
-
+                .map(|(idx, item)| {
+                    let mut display_text = aligned_text(&item.title, text_area_width, config.text.alignment());
                     if entry_selected_visible {
                         let prefix = if Some(idx) == selected_idx {
                             highlight_symbol.to_string()
@@ -393,11 +279,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                 .iter()
                 .enumerate()
                 .map(|(idx, file)| {
-                    if !config.text.is_visible() {
-                        return ListItem::new(Span::raw(""));
-                    }
                     let mut display_text = aligned_text(file, text_area_width, config.text.alignment());
-
                     if entry_selected_visible {
                         let prefix = if Some(idx) == selected_idx {
                             highlight_symbol.to_string()
@@ -425,25 +307,21 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                 .collect()
         };
 
-        let mut list = List::new(items);
+    let mut list = List::new(items);
+    if config.list.section.is_visible() {
+        let title = if app.mode == AppMode::AppSelection {
+            config.list.apps_title.as_deref().unwrap_or(" Applications ")
+        } else if app.mode == AppMode::ScriptResults {
+            app.script_title.as_deref().unwrap_or(" Scripts ")
+        } else {
+            config.list.files_title.as_deref().unwrap_or(" Directories ")
+        };
+        list = list.block(config.list.section.block_with_title(general, title));
+    }
 
-        if config.list.section.is_visible() {
-            let title = if app.mode == AppMode::AppSelection {
-                config.list.apps_title.as_deref().unwrap_or(" Applications ")
-            } else if app.mode == AppMode::SymbolSelection {
-                " Symbols "
-            } else if app.mode == AppMode::Calculator {
-                " Solution "
-            } else {
-                config.list.files_title.as_deref().unwrap_or(" Directories ")
-            };
-            list = list.block(config.list.section.block_with_title(general, title));
-        }
-
-        f.render_stateful_widget(list, scroll_area, &mut app.list_state);
-        if config.list.section.is_visible() {
-            apply_section_border_colors(f, scroll_area, &config.list.section, general);
-        }
+    f.render_stateful_widget(list, scroll_area, &mut app.list_state);
+    if config.list.section.is_visible() {
+        apply_section_border_colors(f, scroll_area, &config.list.section, general);
     }
 }
 
@@ -687,140 +565,6 @@ fn highlight_symbol_width(config: &crate::config::AppConfig) -> u16 {
         .as_deref()
         .map(|s| s.chars().count() as u16)
         .unwrap_or(0)
-}
-
-fn replace_symbols(expr: &str) -> String {
-    expr.replace("sqrt", "√")
-        .replace("integrate", "∫")
-        .replace("diff", "∂")
-        .replace("limit", "lim")
-        .replace("pi", "π")
-}
-
-#[allow(dead_code)]
-fn to_superscript(input: &str) -> String {
-    let mut result = String::new();
-    let mut chars = input.chars().peekable();
-
-    while let Some(c) = chars.next() {
-        if c == '^' {
-            // Check if next is a paren for group exponent e.g. ^(x+1)
-            if let Some(&next_c) = chars.peek() {
-                if next_c == '(' {
-                    chars.next(); // consume '('
-                    // consume until ')'
-                     while let Some(inner) = chars.next() {
-                        if inner == ')' {
-                            break;
-                        }
-                        result.push(char_to_superscript(inner));
-                    }
-                    continue; // Skip the default push for '^'
-                } else if next_c == '-' || next_c.is_digit(10) {
-                     // Read immediate number
-                     while let Some(&inner) = chars.peek() {
-                         if inner.is_digit(10) || inner == '-' || inner == '.' {
-                             result.push(char_to_superscript(inner));
-                             chars.next();
-                         } else {
-                             break;
-                         }
-                     }
-                     continue;
-                }
-            }
-        } 
-        result.push(c);
-         
-    }
-    
-
-    input.replace(" ^ ", "^")
-         .replace("^0", "⁰")
-         .replace("^1", "¹")
-         .replace("^2", "²")
-         .replace("^3", "³")
-         .replace("^4", "⁴")
-         .replace("^5", "⁵")
-         .replace("^6", "⁶")
-         .replace("^7", "⁷")
-         .replace("^8", "⁸")
-         .replace("^9", "⁹")
-         .replace("^-", "⁻")
-         .replace("^(", "⁽")
-         .replace(")", "⁾") 
-
-}
-
-fn format_fancy(expr: &str) -> String {
-    let s = expr.replace(" ^ ", "^");
-    let mut result = String::new();
-    let mut chars = s.chars().peekable();
-    
-    while let Some(c) = chars.next() {
-        if c == '^' {
-            // formatting mode
-            let mut nesting = 0;
-            // Check for parens
-             if let Some(&next) = chars.peek() {
-                 if next == '(' {
-                     chars.next(); // eat (
-                     nesting = 1;
-                 }
-             }
-             
-             let had_paren = nesting > 0;
-             if had_paren {
-                  result.push('⁽');
-             }
-
-             while let Some(&peek) = chars.peek() {
-                 if had_paren {
-                     if peek == ')' {
-                         chars.next();
-                         result.push('⁾');
-                         break;
-                     }
-                      chars.next();
-                      result.push(char_to_superscript(peek));
-                 } else {
-                     if peek.is_alphanumeric() || peek == '.' || peek == '-' {
-                          chars.next();
-                          result.push(char_to_superscript(peek));
-                     } else {
-                         break;
-                     }
-                 }
-             }
-        } else {
-            result.push(c);
-        }
-    }
-    result
-}
-
-
-fn char_to_superscript(c: char) -> char {
-    match c {
-        '0' => '⁰',
-        '1' => '¹',
-        '2' => '²',
-        '3' => '³',
-        '4' => '⁴',
-        '5' => '⁵',
-        '6' => '⁶',
-        '7' => '⁷',
-        '8' => '⁸',
-        '9' => '⁹',
-        '+' => '⁺',
-        '-' => '⁻',
-        '(' => '⁽',
-        ')' => '⁾',
-        '.' => '⋅', // kinda?
-        'x' => 'ˣ',
-        'y' => 'ʸ',
-        _ => c
-    }
 }
 
 fn interpolate_color(c1: Color, c2: Color, factor: f32) -> Color {

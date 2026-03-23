@@ -1,114 +1,66 @@
-# Overview
+# Flare
 
-Flare is a customizable, lightweight, terminal-based application launcher for Linux. Built with Rust and Ratatui, it combines the visual list style of tools like `rofi` or `wofi` with the simplicity and speed of `dmenu`.
+Flare is a terminal-first Linux application launcher built with Rust + Ratatui.
 
-# Features
+## Highlights
 
-- **Fast scanning**: Automatically detects applications from standard `.desktop` file locations (`/usr/share/applications`, `~/.local/share/applications`).
-- **Smart ordering**: Sorts applications by usage frequency, keeping your most used apps at the top.
-- **TUI interface**: Clean, terminal-based user interface.
-- **Instant filtering**: Real-time search filtering as you type.
-- **File Explorer**: Browse and select files directly. Start with `~/` or `/` to search files exclusively, or type a path after an app name to pass it as an argument.
-- **Symbol Search**: Type `.` to search through Nerd Font symbols. Select one to copy it to the clipboard.
-- **Launch Arguments**: Pass arguments to applications (e.g., `nvim ~/file.txt`).
-- **Sudo Support**: Launch applications with elevated privileges (e.g., `sudo gparted`). Includes a secure, terminal-style password prompt.
-- **Keyboard-centric**: Designed for efficiency with intuitive keybindings.
-- **Highly customizable**: Extensive configuration options for appearance and behavior.
+- Fast `.desktop` app scanning and fuzzy search.
+- Usage/favorites-based ordering.
+- Launch arguments support.
+- File explorer mode enabled by default.
+- Keyboard-first navigation and customization.
+- Extensible plugin system with script-based plugins.
 
-# Installation
+## Plugin model
 
-Ensure you have a recent stable Rust toolchain (1.77+) installed via [rustup](https://rustup.rs/).
+Flare core is the host runtime. Plugins are script-based and live in `~/.config/flare/scripts/`. Plugins can define custom triggers, query handling, and output formatting via a simple line-oriented protocol. 
 
-### Quick install (recommended)
+Scripts can be executable files (any language) or extension-based scripts run through supported interpreters (`.sh`, `.bash`, `.zsh`, `.fish`, `.py`, `.pl`, `.rb`, `.js`, `.lua`).
 
-```bash
-git clone https://github.com/GitanElyon/flare.git
-cd flare
-cargo install --locked --path .
-```
+The plugin ecosystem is cataloged in `awesome-flare`:
+- https://github.com/gitanelyon/awesome-flare
 
-This puts the `flare` binary in `~/.cargo/bin`, which should be on your `$PATH` to run it, and already will be if you installed Rust via rustup. Update to the latest commit any time with:
-
-```bash
-cd /path/to/flare
-git pull
-cargo install --locked --path .
-```
-
-### Manual build
+## Install
 
 ```bash
 git clone https://github.com/GitanElyon/flare.git
-cd flare
-cargo build --release
-sudo install -Dm755 target/release/flare /usr/local/bin/flare
+cd flare/core
+cargo install --locked --path .
 ```
 
-Use the manual path if you prefer to inspect the build artifacts yourself or package Flare for a distribution.
+Nix users can install via:
+```bash
+nix profile install "github:GitanElyon/flare"
+```
 
-### Nix/NixOS
+## Usage
 
-If you are running Nix enabled, you can run Flare directly:
+Either run flare from the terminal:
 
 ```bash
-nix run github:GitanElyon/flare
+flare
 ```
 
-To install Flare to your profile:
+Or bind to a global hotkey (e.g. `Super+Space`) using your desktop environment's keyboard settings.
 
-```bash
-nix profile install github:GitanElyon/flare
+Example for hyperland users to mimic `rofi`:
+```
+bind = $mod, space, exec, [float; size 350 400] $terminal -e flare
 ```
 
-To update an existing installation:
-
-```bash
-nix profile upgrade flare
-```
-
-**Note for developers:** If you are developing Flare locally and using Nix Flakes, you **must** `git add` your changes before running `nix run .` or `nix profile install .`. Flakes only recognize files that are tracked by Git.
-
-# Usage
-
-You can run `flare` from your terminal, or set it up as a hotkey application launcher.
-
-Flare can easily be used as an application launcher in place of `rofi` or `wofi`. To set it up, bind your desired hotkey to open a floating terminal running the `flare` command.
-
-You can also use Flare to browse files or pass arguments to applications:
-- **Launch with arguments**: Type the app name followed by arguments (e.g., `neovim ~/Documents/note.txt`).
-- **Sudo Launch**: Type `sudo` before an application name to launch it with elevated privileges. You will be prompted for your password within Flare. Arguments like `sudo -E` are supported.
-- **File Explorer**: Type a path starting with `~/` or `/` (e.g., `~/Projects/` or `/etc/`) to browse directories exclusively. Select a file and press Enter to open it with the default application (via `xdg-open`) or execute it if it's a binary.
-
-Example for Hyprland config:
-
-```conf
-bind = $mod, space, exec, [float] $terminal -e flare
-```
 
 ## Keybindings
 
-| Key | Action |
-| --- | --- |
-| **Type** | Filter the application list |
-| **Up / Down** | Navigate the list |
-| **Left / Right** | Move cursor in input (edit text in-place) |
-| **Alt + Up / Alt + Down** | Jump to top / bottom of list |
-| **Alt + f** | Toggle favorite status |
-| **Tab** | Auto-complete file paths |
-| **Enter** | Launch selected application |
-| **Esc** | Quit Flare |
-| **Backspace** | Delete character from search |
+- `Up`/`Down`: move selection
+- `Left`/`Right`: move cursor in input
+- `Tab`: autocomplete path
+- `Enter`: launch/open selected item
+- `Esc`: quit
+- `Alt+f`: toggle favorite
 
-# Configuration
+## Config files
 
-As detailed in the [Flare Configuration Guide](./DOCS.md), Flare reads its configuration from `~/.config/flare/config.toml`. The file is created automatically the first time you run the launcher. Edits are hot-loaded on restart.
+- `~/.config/flare/config.toml`
+- `~/.config/flare/alias.toml` (optional script and app aliases)
 
-[Currently]( https://github.com/pop-os/freedesktop-desktop-entry/blob/main/src/lib.rs#L656 ), Flare scans the following standard XDG directories:
-- `/usr/share/applications`
-- `/usr/local/share/applications`
-- `~/.local/share/applications`
-
-# License
-
-Flare has an MIT license. Feel free to submit a PR.
-
+See [DOCS.md](DOCS.md) for full configuration details.

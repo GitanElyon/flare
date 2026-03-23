@@ -73,7 +73,6 @@ impl AppConfig {
                 default
             }
         };
-
         ConfigLoadResult { config, warning }
     }
 }
@@ -94,8 +93,6 @@ pub struct ResultsConfig {
     pub apps_title: Option<String>,
     #[serde(alias = "directories-title")]
     pub files_title: Option<String>,
-    #[serde(alias = "authentication-title")]
-    pub sudo_title: Option<String>,
 }
 
 impl Default for ResultsConfig {
@@ -104,7 +101,6 @@ impl Default for ResultsConfig {
             section: SectionConfig::default(),
             apps_title: None,
             files_title: None,
-            sudo_title: None,
         }
     }
 }
@@ -217,9 +213,6 @@ pub struct FeaturesConfig {
     pub dirs_first: bool,
     pub show_duplicates: bool,
     pub recent_first: bool,
-    pub symbol_search_trigger: String,
-    pub replace_calc_symbols: bool,
-    pub fancy_numbers: bool,
 }
 
 impl Default for FeaturesConfig {
@@ -231,9 +224,6 @@ impl Default for FeaturesConfig {
             dirs_first: true,
             show_duplicates: false,
             recent_first: true,
-            symbol_search_trigger: String::from("."),
-            replace_calc_symbols: false,
-            fancy_numbers: false,
         }
     }
 }

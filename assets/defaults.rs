@@ -1,3 +1,4 @@
+{
 AppConfig {
     general: GeneralConfig {
         rounded_corners: true,
@@ -16,9 +17,6 @@ AppConfig {
         dirs_first: true,
         show_duplicates: false,
         recent_first: true,
-        symbol_search_trigger: String::from("."),
-        replace_calc_symbols: false,
-        fancy_numbers: false,
     },
     window: SectionConfig {
         title: None,
@@ -100,7 +98,6 @@ AppConfig {
         },
         apps_title: None,
         files_title: None,
-        sudo_title: None,
     },
     entry: EntryConfig {
         fg: vec![],
@@ -109,8 +106,8 @@ AppConfig {
     },
     entry_selected: SectionConfig {
         title: None,
-        fg: vec![String::from("#151525")],
-        bg: vec![String::from("#424242")],
+        fg: vec![String::from("#111111")],
+        bg: vec![String::from("#888888")],
         border_color: vec![],
         border_angle: 90,
         gradient_angle: 0,
@@ -136,4 +133,5 @@ AppConfig {
         },
         alignment: Some(TextAlignment::Left),
     },
+}
 }
