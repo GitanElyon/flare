@@ -9,6 +9,7 @@ Flare is a terminal-first Linux application launcher built with Rust + Ratatui.
 - Launch arguments support.
 - File explorer mode enabled by default.
 - Keyboard-first navigation and customization.
+- Extensible plugin system with script-based plugins.
 
 ## Plugin model
 
@@ -32,11 +33,21 @@ Nix users can install via:
 nix profile install "github:GitanElyon/flare"
 ```
 
-## Run
+## Usage
+
+Either run flare from the terminal:
 
 ```bash
 flare
 ```
+
+Or bind to a global hotkey (e.g. `Super+Space`) using your desktop environment's keyboard settings.
+
+Example for hyperland users to mimic `rofi`:
+```
+bind = $mod, space, exec, [float; size 350 400] $terminal -e flare
+```
+
 
 ## Keybindings
 
