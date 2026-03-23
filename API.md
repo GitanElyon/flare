@@ -24,7 +24,7 @@ Plugin scripts and community catalog are documented in `plugins/` and in:
 Flare reads:
 
 - `~/.config/flare/config.toml` (UI + launcher behavior)
-- `~/.config/flare/scripts/alias.toml` (optional script/trigger mapping)
+- `~/.config/flare/alias.toml` (optional script/trigger mapping)
 
 Important toggles in `features`:
 
@@ -47,6 +47,6 @@ Implemented in `App::update_filter` + `App::list_completions`:
 
 - Plugin scripts are expected under `~/.config/flare/scripts/`.
 - Scripts may be executable files (run directly) or known extension files run via interpreter (`.sh`, `.bash`, `.zsh`, `.fish`, `.py`, `.pl`, `.rb`, `.js`, `.lua`).
-- Script aliases are loaded from `~/.config/flare/scripts/alias.toml`.
+- Script and app aliases are loaded from `~/.config/flare/alias.toml`.
 
 For plugin implementation details and curated plugins, use the `awesome-flare` repo.

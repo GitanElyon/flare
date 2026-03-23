@@ -61,6 +61,6 @@ bind = $mod, space, exec, [float; size 350 400] $terminal -e flare
 ## Config files
 
 - `~/.config/flare/config.toml`
-- `~/.config/flare/scripts/alias.toml` (optional script trigger aliases)
+- `~/.config/flare/alias.toml` (optional script and app aliases)
 
 See [DOCS.md](DOCS.md) for full configuration details.

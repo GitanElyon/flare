@@ -73,9 +73,28 @@ pub struct App {
 
 impl App {
     pub fn new(config: AppConfig, status_message: Option<String>) -> Self {
-        let entries = scan_desktop_files(config.features.show_duplicates);
+        let (mut script_aliases, mut app_aliases) = Self::load_aliases();
         let history = History::load();
-        let scripts = Self::load_scripts();
+        let scripts = Self::load_scripts(&mut script_aliases);
+        
+        let mut entries = scan_desktop_files(config.features.show_duplicates);
+        
+        if !config.features.show_duplicates {
+            let alias_keys: Vec<String> = app_aliases.keys().map(|k| k.to_lowercase()).collect();
+            entries.retain(|e| !alias_keys.contains(&e.name.to_lowercase()));
+        }
+
+        for (name, command) in app_aliases.drain() {
+            entries.push(AppEntry {
+                name,
+                exec_args: vec![
+                    "sh".to_string(),
+                    "-c".to_string(),
+                    format!(r#"{} "$@""#, command),
+                    "--".to_string(),
+                ],
+            });
+        }
 
         let flare_ascii = if let Some(path) = &config.flare_ascii.custom_path {
             let expanded_path = path.replace("~", std::env::var("HOME").unwrap_or_else(|_| String::new()).as_str());
@@ -688,13 +707,12 @@ impl App {
         normalized.to_string()
     }
 
-    fn load_scripts() -> Vec<ScriptPlugin> {
-        let Some(dir) = Self::scripts_dir() else {
-            return Vec::new();
-        };
-
-        let aliases = Self::load_script_aliases(&dir);
+    fn load_scripts(aliases: &mut HashMap<String, String>) -> Vec<ScriptPlugin> {
         let mut scripts = Vec::new();
+        
+        let Some(dir) = Self::scripts_dir() else {
+            return scripts;
+        };
 
         let Ok(entries) = fs::read_dir(&dir) else {
             return scripts;
@@ -732,7 +750,7 @@ impl App {
                 .and_then(|value| value.to_str())
                 .unwrap_or(stem)
                 .to_string();
-            let trigger = aliases.get(stem).cloned();
+            let trigger = aliases.remove(stem).or_else(|| aliases.remove(&file_id));
 
             scripts.push(ScriptPlugin {
                 id,
@@ -747,28 +765,48 @@ impl App {
         scripts
     }
 
-    fn load_script_aliases(scripts_dir: &Path) -> HashMap<String, String> {
-        let mut aliases = HashMap::new();
+    fn load_aliases() -> (HashMap<String, String>, HashMap<String, String>) {
+        let mut script_aliases = HashMap::new();
+        let mut app_aliases = HashMap::new();
 
-        let alias_path = if scripts_dir.join("alias.toml").exists() {
-            scripts_dir.join("alias.toml")
-        } else if scripts_dir.join("Alias.toml").exists() {
-            scripts_dir.join("Alias.toml")
+        let Some(mut config_dir_path) = config_dir() else {
+            return (script_aliases, app_aliases);
+        };
+        config_dir_path.push("flare");
+
+        let alias_path = if config_dir_path.join("alias.toml").exists() {
+            config_dir_path.join("alias.toml")
+        } else if config_dir_path.join("Alias.toml").exists() {
+            config_dir_path.join("Alias.toml")
         } else {
-            return aliases;
+            return (script_aliases, app_aliases);
         };
 
         let Ok(contents) = fs::read_to_string(alias_path) else {
-            return aliases;
+            return (script_aliases, app_aliases);
         };
         let Ok(value) = toml::from_str::<toml::Value>(&contents) else {
-            return aliases;
+            return (script_aliases, app_aliases);
         };
+        
         if let Some(table) = value.as_table() {
-            Self::collect_aliases_from_table(table, "", &mut aliases);
+            let has_scripts = table.contains_key("scripts");
+            let has_apps = table.contains_key("apps");
+
+            if !has_scripts && !has_apps {
+                // Backwards compatibility: treat everything as script aliases
+                Self::collect_aliases_from_table(table, "", &mut script_aliases);
+            } else {
+                if let Some(scripts_table) = table.get("scripts").and_then(|v| v.as_table()) {
+                    Self::collect_aliases_from_table(scripts_table, "", &mut script_aliases);
+                }
+                if let Some(apps_table) = table.get("apps").and_then(|v| v.as_table()) {
+                    Self::collect_aliases_from_table(apps_table, "", &mut app_aliases);
+                }
+            }
         }
 
-        aliases
+        (script_aliases, app_aliases)
     }
 
     fn collect_aliases_from_table(

@@ -17,7 +17,7 @@ Script integration uses:
 
 - `~/.config/flare/scripts/`
   - executable `*.sh` scripts discovered dynamically.
-- `~/.config/flare/scripts/alias.toml`
+- `~/.config/flare/alias.toml`
   - optional trigger aliases for script names.
 
 `config.toml` is created automatically on first run.
