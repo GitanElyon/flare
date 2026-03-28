@@ -1,4 +1,7 @@
-# Flare
+<p align="center">
+  <img src="assets/flare.svg" alt="Flare Logo" width="577">
+</p>
+
 
 Flare is a terminal-first Linux application launcher built with Rust + Ratatui.
 
