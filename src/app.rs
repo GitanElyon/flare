@@ -28,10 +28,17 @@ pub struct AppEntry {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScriptAction {
     CopyToClipboardAndExit,
+    CopyToClipboard,
+    SetStatusMessage,
+    ClearStatusMessage,
     SetSearchQuery,
     AppendToQuery,
+    PrependToQuery,
+    ReplaceLastToken,
     PopLastToken,
+    PopLastChar,
     ClearQuery,
+    RefreshResults,
     ExecuteAndExit,
     ExecuteAndRefresh,
     None,
@@ -201,6 +208,30 @@ impl App {
         } else {
             self.set_search_query(String::new());
         }
+    }
+
+    pub fn replace_last_query_token(&mut self, replacement: &str) {
+        let trimmed = self.search_query.trim_end();
+
+        if trimmed.is_empty() {
+            self.set_search_query(replacement.to_string());
+            return;
+        }
+
+        if let Some(last_ws_idx) = trimmed.rfind(char::is_whitespace) {
+            self.set_search_query(format!("{}{}", &trimmed[..=last_ws_idx], replacement));
+        } else {
+            self.set_search_query(replacement.to_string());
+        }
+    }
+
+    pub fn pop_last_query_char(&mut self) {
+        let mut chars: Vec<char> = self.search_query.chars().collect();
+        if chars.is_empty() {
+            return;
+        }
+        chars.pop();
+        self.set_search_query(chars.into_iter().collect());
     }
 
     pub fn sort_entries(&mut self) {
@@ -928,10 +959,10 @@ impl App {
         self.mode = AppMode::ScriptResults;
 
         match self.run_script(&script, &payload) {
-            Ok((title, items)) => {
+            Ok((title, message, items)) => {
                 self.script_title = title.or_else(|| Some(format!(" {} ", script.id)));
                 self.script_items = items;
-                self.status_message = None;
+                self.status_message = message;
             }
             Err(err) => {
                 self.script_title = Some(format!(" {} ", script.id));
@@ -946,7 +977,7 @@ impl App {
         true
     }
 
-    fn run_script(&self, script: &ScriptPlugin, payload: &str) -> Result<(Option<String>, Vec<ScriptItem>), String> {
+    fn run_script(&self, script: &ScriptPlugin, payload: &str) -> Result<(Option<String>, Option<String>, Vec<ScriptItem>), String> {
         let mut command = if let Some(interpreter) = script.interpreter {
             let mut command = Command::new(interpreter);
             command.arg(&script.path);
@@ -974,8 +1005,9 @@ impl App {
         Ok(Self::parse_script_output(&stdout))
     }
 
-    fn parse_script_output(output: &str) -> (Option<String>, Vec<ScriptItem>) {
+    fn parse_script_output(output: &str) -> (Option<String>, Option<String>, Vec<ScriptItem>) {
         let mut title: Option<String> = None;
+        let mut message: Option<String> = None;
         let mut items = Vec::new();
         let mut default_action = ScriptAction::None;
         let mut next_item_action: Option<ScriptAction> = None;
@@ -989,6 +1021,14 @@ impl App {
             if let Some(directive) = line.strip_prefix("f! ") {
                 if let Some(value) = directive.strip_prefix("title ") {
                     title = Some(format!(" {} ", value.trim()));
+                    continue;
+                }
+                if let Some(value) = directive.strip_prefix("message ") {
+                    message = Some(value.trim().to_string());
+                    continue;
+                }
+                if directive == "clear_message" {
+                    message = None;
                     continue;
                 }
                 if let Some(value) = directive.strip_prefix("action ") {
@@ -1056,16 +1096,23 @@ impl App {
             });
         }
 
-        (title, items)
+        (title, message, items)
     }
 
     fn parse_script_action(value: &str) -> ScriptAction {
         match value {
             "CopyToClipboardAndExit" => ScriptAction::CopyToClipboardAndExit,
+            "CopyToClipboard" => ScriptAction::CopyToClipboard,
+            "SetStatusMessage" => ScriptAction::SetStatusMessage,
+            "ClearStatusMessage" => ScriptAction::ClearStatusMessage,
             "SetSearchQuery" => ScriptAction::SetSearchQuery,
             "AppendToQuery" => ScriptAction::AppendToQuery,
+            "PrependToQuery" => ScriptAction::PrependToQuery,
+            "ReplaceLastToken" => ScriptAction::ReplaceLastToken,
             "PopLastToken" => ScriptAction::PopLastToken,
+            "PopLastChar" => ScriptAction::PopLastChar,
             "ClearQuery" => ScriptAction::ClearQuery,
+            "RefreshResults" => ScriptAction::RefreshResults,
             "ExecuteAndExit" => ScriptAction::ExecuteAndExit,
             "ExecuteAndRefresh" => ScriptAction::ExecuteAndRefresh,
             _ => ScriptAction::None,
@@ -1080,13 +1127,41 @@ impl App {
                 self.update_filter();
             }
             ScriptAction::AppendToQuery => self.insert_search_text(&item.value),
+            ScriptAction::PrependToQuery => {
+                self.set_search_query(format!("{}{}", item.value, self.search_query));
+                self.update_filter();
+            }
+            ScriptAction::ReplaceLastToken => {
+                self.replace_last_query_token(&item.value);
+                self.update_filter();
+            }
             ScriptAction::PopLastToken => {
                 self.pop_last_query_token();
+                self.update_filter();
+            }
+            ScriptAction::PopLastChar => {
+                self.pop_last_query_char();
                 self.update_filter();
             }
             ScriptAction::ClearQuery => {
                 self.set_search_query(String::new());
                 self.update_filter();
+            }
+            ScriptAction::RefreshResults => {
+                self.update_filter();
+            }
+            ScriptAction::CopyToClipboard => {
+                if let Err(err) = self.copy_to_clipboard(&item.value) {
+                    self.status_message = Some(format!("Clipboard failed: {}", err));
+                } else {
+                    self.status_message = Some("Copied to clipboard".to_string());
+                }
+            }
+            ScriptAction::SetStatusMessage => {
+                self.status_message = Some(item.value.clone());
+            }
+            ScriptAction::ClearStatusMessage => {
+                self.status_message = None;
             }
             ScriptAction::CopyToClipboardAndExit => {
                 if let Err(err) = self.copy_to_clipboard(&item.value) {
