@@ -30,6 +30,7 @@ pub enum ScriptAction {
     CopyToClipboardAndExit,
     SetSearchQuery,
     AppendToQuery,
+    PopLastToken,
     ClearQuery,
     ExecuteAndExit,
     ExecuteAndRefresh,
@@ -185,6 +186,21 @@ impl App {
     pub fn set_search_query(&mut self, query: String) {
         self.search_query = query;
         self.search_cursor = Self::char_count(&self.search_query);
+    }
+
+    pub fn pop_last_query_token(&mut self) {
+        let trimmed = self.search_query.trim_end();
+
+        if trimmed.is_empty() {
+            self.set_search_query(String::new());
+            return;
+        }
+
+        if let Some(last_ws_idx) = trimmed.rfind(char::is_whitespace) {
+            self.set_search_query(trimmed[..=last_ws_idx].to_string());
+        } else {
+            self.set_search_query(String::new());
+        }
     }
 
     pub fn sort_entries(&mut self) {
@@ -1048,6 +1064,7 @@ impl App {
             "CopyToClipboardAndExit" => ScriptAction::CopyToClipboardAndExit,
             "SetSearchQuery" => ScriptAction::SetSearchQuery,
             "AppendToQuery" => ScriptAction::AppendToQuery,
+            "PopLastToken" => ScriptAction::PopLastToken,
             "ClearQuery" => ScriptAction::ClearQuery,
             "ExecuteAndExit" => ScriptAction::ExecuteAndExit,
             "ExecuteAndRefresh" => ScriptAction::ExecuteAndRefresh,
@@ -1063,6 +1080,10 @@ impl App {
                 self.update_filter();
             }
             ScriptAction::AppendToQuery => self.insert_search_text(&item.value),
+            ScriptAction::PopLastToken => {
+                self.pop_last_query_token();
+                self.update_filter();
+            }
             ScriptAction::ClearQuery => {
                 self.set_search_query(String::new());
                 self.update_filter();
