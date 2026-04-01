@@ -44,11 +44,22 @@ pub enum ScriptAction {
     None,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ScriptRowMeta {
+    pub display: Option<String>,
+    pub meta: Vec<String>,
+    pub nonselectable: bool,
+    pub permanent: bool,
+    pub active: bool,
+    pub urgent: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct ScriptItem {
     pub title: String,
     pub value: String,
     pub action: ScriptAction,
+    pub meta: ScriptRowMeta,
 }
 
 #[derive(Debug, Clone)]
@@ -195,6 +206,108 @@ impl App {
         self.search_cursor = Self::char_count(&self.search_query);
     }
 
+    fn script_item_is_selectable(&self, index: usize) -> bool {
+        self.script_items
+            .get(index)
+            .map(|item| !item.meta.nonselectable)
+            .unwrap_or(false)
+    }
+
+    fn first_selectable_script_index(&self) -> Option<usize> {
+        self.script_items
+            .iter()
+            .enumerate()
+            .find_map(|(index, item)| if item.meta.nonselectable { None } else { Some(index) })
+    }
+
+    fn last_selectable_script_index(&self) -> Option<usize> {
+        self.script_items
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, item)| if item.meta.nonselectable { None } else { Some(index) })
+    }
+
+    fn parse_meta_bool(value: &str) -> bool {
+        !matches!(value.trim().to_ascii_lowercase().as_str(), "false" | "0" | "no" | "off")
+    }
+
+    fn parse_script_row_meta(text: &str) -> (String, ScriptRowMeta) {
+        let trimmed = text.trim();
+        if trimmed.is_empty() || trimmed.starts_with("/@meta") {
+            return (trimmed.to_string(), ScriptRowMeta::default());
+        }
+
+        let Some(meta_index) = trimmed.find(" @meta:") else {
+            return (trimmed.to_string(), ScriptRowMeta::default());
+        };
+
+        let visible = trimmed[..meta_index].trim_end().to_string();
+        let suffix = &trimmed[meta_index + 1..];
+        let meta = Self::parse_script_row_meta_suffix(suffix);
+        (visible, meta)
+    }
+
+    fn parse_script_row_meta_suffix(suffix: &str) -> ScriptRowMeta {
+        let mut meta = ScriptRowMeta::default();
+        let cleaned = suffix.trim();
+        let cleaned = cleaned.strip_prefix("@meta:").unwrap_or(cleaned);
+
+        for raw_chunk in cleaned.split(" @meta:") {
+            let chunk = raw_chunk.trim();
+            if chunk.is_empty() {
+                continue;
+            }
+
+            let (key, value) = match chunk.split_once('=') {
+                Some((key, value)) => (key.trim(), value.trim()),
+                None => (chunk, "true"),
+            };
+
+            match key {
+                "display" => {
+                    if !value.is_empty() {
+                        meta.display = Some(value.to_string());
+                    }
+                }
+                "meta" => {
+                    meta.meta.extend(
+                        value
+                            .split(',')
+                            .map(|entry| entry.trim())
+                            .filter(|entry| !entry.is_empty())
+                            .map(|entry| entry.to_string()),
+                    );
+                }
+                "nonselectable" => meta.nonselectable = Self::parse_meta_bool(value),
+                "permanent" => meta.permanent = Self::parse_meta_bool(value),
+                "active" => meta.active = Self::parse_meta_bool(value),
+                "urgent" => meta.urgent = Self::parse_meta_bool(value),
+                _ => {}
+            }
+        }
+
+        meta
+    }
+
+    fn apply_script_row_meta(target: &mut ScriptRowMeta, source: ScriptRowMeta) {
+        if source.display.is_some() {
+            target.display = source.display;
+        }
+        if !source.meta.is_empty() {
+            target.meta.extend(source.meta);
+        }
+        target.nonselectable |= source.nonselectable;
+        target.permanent |= source.permanent;
+        target.active |= source.active;
+        target.urgent |= source.urgent;
+    }
+
+    fn parse_script_row_text(text: &str) -> (String, ScriptRowMeta) {
+        let (visible, meta) = Self::parse_script_row_meta(text);
+        (visible, meta)
+    }
+
     pub fn pop_last_query_token(&mut self) {
         let trimmed = self.search_query.trim_end();
 
@@ -286,7 +399,7 @@ impl App {
             if count == 0 {
                 self.list_state.select(None);
             } else {
-                self.list_state.select(Some(0));
+                self.list_state.select(self.first_selectable_script_index());
             }
             return;
         }
@@ -387,6 +500,32 @@ impl App {
         if len == 0 {
             return;
         }
+
+        if self.mode == AppMode::ScriptResults {
+            let start = match self.list_state.selected() {
+                Some(i) => i,
+                None => {
+                    if delta >= 0 {
+                        len - 1
+                    } else {
+                        0
+                    }
+                }
+            };
+
+            let mut current = start;
+            for _ in 0..len {
+                current = ((current as i32 + delta).rem_euclid(len as i32)) as usize;
+                if self.script_item_is_selectable(current) {
+                    self.list_state.select(Some(current));
+                    return;
+                }
+            }
+
+            self.list_state.select(None);
+            return;
+        }
+
         let i = match self.list_state.selected() {
             Some(i) => {
                 let new_i = (i as i32 + delta).rem_euclid(len as i32);
@@ -405,7 +544,11 @@ impl App {
         };
 
         if len > 0 {
-            self.list_state.select(Some(0));
+            if self.mode == AppMode::ScriptResults {
+                self.list_state.select(self.first_selectable_script_index());
+            } else {
+                self.list_state.select(Some(0));
+            }
         }
     }
 
@@ -417,7 +560,11 @@ impl App {
         };
 
         if len > 0 {
-            self.list_state.select(Some(len - 1));
+            if self.mode == AppMode::ScriptResults {
+                self.list_state.select(self.last_selectable_script_index());
+            } else {
+                self.list_state.select(Some(len - 1));
+            }
         }
     }
 
@@ -451,6 +598,9 @@ impl App {
         if self.mode == AppMode::ScriptResults {
             if let Some(i) = self.list_state.selected() {
                 if let Some(item) = self.script_items.get(i).cloned() {
+                    if item.meta.nonselectable {
+                        return;
+                    }
                     self.apply_script_action(&item);
                 }
             }
@@ -970,6 +1120,7 @@ impl App {
                     title: format!("Script error: {}", err),
                     value: String::new(),
                     action: ScriptAction::None,
+                    meta: ScriptRowMeta::default(),
                 }];
             }
         }
@@ -1050,32 +1201,53 @@ impl App {
                 if let Some(value) = directive.strip_prefix("single ") {
                     let mut parts = value.splitn(2, '|');
                     let query = parts.next().unwrap_or_default().trim();
-                    let result = parts.next().unwrap_or_default().trim();
+                    let (result_text, result_meta) = Self::parse_script_row_text(parts.next().unwrap_or_default().trim());
                     let label = if query.is_empty() {
-                        result.to_string()
+                        result_text.clone()
                     } else {
-                        format!("{} = {}", query, result)
+                        format!("{} = {}", query, result_text)
                     };
                     items.clear();
                     items.push(ScriptItem {
                         title: label,
-                        value: result.to_string(),
+                        value: result_text,
                         action: next_item_action.take().unwrap_or(default_action.clone()),
+                        meta: result_meta,
                     });
                     continue;
                 }
                 if let Some(value) = directive.strip_prefix("item ") {
                     let mut parts = value.splitn(3, '|');
-                    let item_title = parts.next().unwrap_or_default().trim();
-                    let item_value = parts.next().unwrap_or(item_title).trim();
-                    let explicit_action = parts.next().map(|s| Self::parse_script_action(s.trim()));
+                    let (item_title, title_meta) = Self::parse_script_row_text(parts.next().unwrap_or_default().trim());
+                    let value_part = parts.next().unwrap_or(item_title.as_str()).trim();
+                    let (item_value, value_meta) = Self::parse_script_row_text(value_part);
+                    let (explicit_action, action_meta) = parts
+                        .next()
+                        .and_then(|s| {
+                            let (action_text, meta) = Self::parse_script_row_text(s.trim());
+                            let action_text = action_text.trim();
+                            if action_text.is_empty() {
+                                None
+                            } else {
+                                Some((Self::parse_script_action(action_text), meta))
+                            }
+                        })
+                        .unwrap_or((ScriptAction::None, ScriptRowMeta::default()));
                     if !item_title.is_empty() {
+                        let mut meta = ScriptRowMeta::default();
+                        Self::apply_script_row_meta(&mut meta, title_meta);
+                        Self::apply_script_row_meta(&mut meta, value_meta);
+                        Self::apply_script_row_meta(&mut meta, action_meta);
+                        let action = if explicit_action != ScriptAction::None {
+                            explicit_action
+                        } else {
+                            next_item_action.take().unwrap_or(default_action.clone())
+                        };
                         items.push(ScriptItem {
-                            title: item_title.to_string(),
-                            value: item_value.to_string(),
-                            action: explicit_action
-                                .or_else(|| next_item_action.take())
-                                .unwrap_or(default_action.clone()),
+                            title: item_title,
+                            value: item_value,
+                            action,
+                            meta,
                         });
                     }
                     continue;
@@ -1084,15 +1256,20 @@ impl App {
             }
 
             let mut parts = line.splitn(2, '|');
-            let item_title = parts.next().unwrap_or_default().trim();
+            let (item_title, title_meta) = Self::parse_script_row_text(parts.next().unwrap_or_default().trim());
             if item_title.is_empty() {
                 continue;
             }
-            let item_value = parts.next().unwrap_or(item_title).trim();
+            let raw_value = parts.next().unwrap_or(item_title.as_str()).trim();
+            let (item_value, value_meta) = Self::parse_script_row_text(raw_value);
+            let mut meta = ScriptRowMeta::default();
+            Self::apply_script_row_meta(&mut meta, title_meta);
+            Self::apply_script_row_meta(&mut meta, value_meta);
             items.push(ScriptItem {
-                title: item_title.to_string(),
-                value: item_value.to_string(),
+                title: item_title,
+                value: item_value,
                 action: next_item_action.take().unwrap_or(default_action.clone()),
+                meta,
             });
         }
 

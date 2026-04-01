@@ -248,7 +248,16 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                 .iter()
                 .enumerate()
                 .map(|(idx, item)| {
-                    let mut display_text = aligned_text(&item.title, text_area_width, config.text.alignment());
+                    let visible_title = item.meta.display.as_deref().unwrap_or(&item.title);
+                    let label = if item.meta.urgent {
+                        format!("! {}", visible_title)
+                    } else if item.meta.active {
+                        format!("* {}", visible_title)
+                    } else {
+                        visible_title.to_string()
+                    };
+
+                    let mut display_text = aligned_text(&label, text_area_width, config.text.alignment());
                     if entry_selected_visible {
                         let prefix = if Some(idx) == selected_idx {
                             highlight_symbol.to_string()
