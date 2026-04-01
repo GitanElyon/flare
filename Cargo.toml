@@ -1,7 +1,15 @@
 [package]
 name = "qst"
-version = "0.1.0"
+version = "0.8.2"
+authors = ["GitanElyon"]
 edition = "2024"
+description = "A Community Driven Application CLI Quick Script Tool"
+license = "MIT"
+repository = "https://github.com/gitanelyon/qst"
+documentation = "https://docs"
+readme = "README.md"
+keywords = ["cli", "tool", "api", "launcher", "tui", "terminal", "application", "quick", "script", "community", "workflow", "productivity", "customization"]
+categories = ["command-line-utilities", "terminal-applications", "application-launchers", "productivity"]
 
 [dependencies]
 ratatui = "0.29.0"
