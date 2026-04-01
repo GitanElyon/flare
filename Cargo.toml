@@ -9,7 +9,6 @@ repository = "https://github.com/gitanelyon/qst"
 documentation = "https://docs"
 readme = "README.md"
 keywords = ["tui", "tool", "workflow", "launcher", "community"]
-categories = ["command-line-utilities", "terminal-applications", "application-launchers", "productivity", "community-driven"]
 
 [dependencies]
 ratatui = "0.29.0"
