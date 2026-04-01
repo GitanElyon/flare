@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="543" height="274" viewBox="0 0 543 274">
+  <defs>
+    <linearGradient id="qstGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6464ff" />
+      <stop offset="100%" stop-color="#c864ff" />
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="transparent" />
+  
+  <text x="32" y="50" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18" line-height="21" xml:space="preserve" fill="url(#qstGradient)"><tspan x="32" dy="0">        ██████     █████████  ███████████</tspan><tspan x="32" dy="21">      ███▒▒▒▒███  ███▒▒▒▒▒███▒█▒▒▒███▒▒▒█</tspan><tspan x="32" dy="21">     ███    ▒▒███▒███    ▒▒▒ ▒   ▒███  ▒ </tspan><tspan x="32" dy="21">    ▒███     ▒███▒▒█████████     ▒███    </tspan><tspan x="32" dy="21">    ▒███   ██▒███ ▒▒▒▒▒▒▒▒███    ▒███    </tspan><tspan x="32" dy="21">    ▒▒███ ▒▒████  ███    ▒███    ▒███    </tspan><tspan x="32" dy="21">     ▒▒▒██████▒██▒▒█████████     █████   </tspan><tspan x="32" dy="21">       ▒▒▒▒▒▒ ▒▒  ▒▒▒▒▒▒▒▒▒     ▒▒▒▒▒    </tspan></text>
+  <text x="32" y="242" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="18" line-height="22" xml:space="preserve" fill="#A0A0A0"><tspan x="32" dy="0">   A Community Driven CLI Quick Script Tool</tspan></text>
+</svg>

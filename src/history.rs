@@ -13,7 +13,7 @@ pub struct History {
 impl History {
     pub fn load() -> Self {
         if let Some(mut path) = config_dir() {
-            path.push("flare");
+            path.push("qst");
             path.push("history.toml");
             if path.exists() {
                 if let Ok(content) = fs::read_to_string(&path) {
@@ -28,7 +28,7 @@ impl History {
 
     pub fn save(&self) {
         if let Some(mut path) = config_dir() {
-            path.push("flare");
+            path.push("qst");
             if fs::create_dir_all(&path).is_ok() {
                 path.push("history.toml");
                 if let Ok(content) = toml::to_string(self) {

@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="assets/flare.svg" alt="Flare Logo" width="577">
+  <img src="assets/qst.svg" alt="qst Logo" width="577">
 </p>
 
 
-Flare is a terminal-first Linux application launcher built with Rust + Ratatui.
+Qst, pronounced "quest", is a TUI Linux application launcher built with Rust + Ratatui.
 
 ## Highlights
 
@@ -16,39 +16,39 @@ Flare is a terminal-first Linux application launcher built with Rust + Ratatui.
 
 ## Plugin model
 
-Flare core is the host runtime. Plugins are script-based and live in `~/.config/flare/scripts/`. Plugins can define custom triggers, query handling, and output formatting via a simple line-oriented protocol. 
+qst is the host runtime. Plugins are script-based and live in `~/.config/qst/scripts/`. Plugins can define custom triggers, query handling, and output formatting via a simple line-oriented protocol. 
 
 Scripts can be executable files (any language) or extension-based scripts run through supported interpreters (`.sh`, `.bash`, `.zsh`, `.fish`, `.py`, `.pl`, `.rb`, `.js`, `.lua`).
 
-The plugin ecosystem is cataloged in `awesome-flare`:
-- https://github.com/gitanelyon/awesome-flare
+The plugin ecosystem is cataloged in `awesome-qst`:
+- https://github.com/gitanelyon/awesome-qst
 
 ## Install
 
 ```bash
-git clone https://github.com/GitanElyon/flare.git
-cd flare/core
+git clone https://github.com/GitanElyon/qst.git
+cd qst
 cargo install --locked --path .
 ```
 
 Nix users can install via:
 ```bash
-nix profile install "github:GitanElyon/flare"
+nix profile install "github:GitanElyon/qst"
 ```
 
 ## Usage
 
-Either run flare from the terminal:
+Either run qst from the terminal:
 
 ```bash
-flare
+qst
 ```
 
 Or bind to a global hotkey (e.g. `Super+Space`) using your desktop environment's keyboard settings.
 
 Example for hyperland users to mimic `rofi`:
 ```
-bind = $mod, space, exec, [float; size 350 400] $terminal -e flare
+bind = $mod, space, exec, [float; size 350 400] $terminal -e qst
 ```
 
 
@@ -63,7 +63,7 @@ bind = $mod, space, exec, [float; size 350 400] $terminal -e flare
 
 ## Config files
 
-- `~/.config/flare/config.toml`
-- `~/.config/flare/alias.toml` (optional script and app aliases)
+- `~/.config/qst/config.toml`
+- `~/.config/qst/alias.toml` (optional script and app aliases)
 
 See [DOCS.md](DOCS.md) for full configuration details.

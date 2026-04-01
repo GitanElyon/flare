@@ -19,7 +19,7 @@ pub struct AppConfig {
     pub features: FeaturesConfig,
     pub window: SectionConfig,
     pub outer_box: SectionConfig,
-    pub flare_ascii: FlareAsciiConfig,
+    pub qst_ascii: QstAsciiConfig,
     pub input: SectionConfig,
     #[serde(alias = "results")]
     pub list: ResultsConfig,
@@ -34,9 +34,9 @@ impl AppConfig {
         let mut warning = None;
         let config = match config_dir() {
             Some(mut dir) => {
-                dir.push("flare");
+                dir.push("qst");
                 if fs::create_dir_all(&dir).is_err() {
-                    warning = Some("Unable to create ~/.config/flare, using defaults".into());
+                    warning = Some("Unable to create ~/.config/qst, using defaults".into());
                     default
                 } else {
                     let config_path = dir.join("config.toml");
@@ -107,7 +107,7 @@ impl Default for ResultsConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
-pub struct FlareAsciiConfig {
+pub struct QstAsciiConfig {
     #[serde(flatten)]
     pub section: SectionConfig,
     #[serde(default, deserialize_with = "deserialize_color_stops")]
@@ -118,7 +118,7 @@ pub struct FlareAsciiConfig {
     pub custom_path: Option<String>,
 }
 
-impl Default for FlareAsciiConfig {
+impl Default for QstAsciiConfig {
     fn default() -> Self {
         Self {
             section: SectionConfig {

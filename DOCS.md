@@ -1,23 +1,23 @@
-# Flare Core Docs
+# qst Docs
 
-`core` is the base Flare launcher runtime.
+Here you will find documentation for qst features, configuration, and plugin integration.
 
 Plugin packs (scripts, aliases, community catalog) are documented in:
 
-- https://github.com/gitanelyon/awesome-flare
+- https://github.com/gitanelyon/awesome-qst
 
 ## Config files
 
-Flare reads launcher settings from:
+qst reads launcher settings from:
 
-- `~/.config/flare/config.toml`
+- `~/.config/qst/config.toml`
   - UI + launcher behavior.
 
 Script integration uses:
 
-- `~/.config/flare/scripts/`
+- `~/.config/qst/scripts/`
   - executable `*.sh` scripts discovered dynamically.
-- `~/.config/flare/alias.toml`
+- `~/.config/qst/alias.toml`
   - optional trigger aliases for script names.
 
 `config.toml` is created automatically on first run.
@@ -61,13 +61,13 @@ Behavior:
 
 ## Plugin integration notes
 
-- Flare core is host/runtime.
-- Script plugins live in `~/.config/flare/scripts/`.
-- Protocol, directives, and setup guidance are in `https://github.com/gitanelyon/awesome-flare`.
+- qst is host/runtime.
+- Script plugins live in `~/.config/qst/scripts/`.
+- Protocol, directives, and setup guidance are in `https://github.com/gitanelyon/awesome-qst`.
 
 ## XDG app scan paths
 
-Flare discovers `.desktop` entries from standard XDG locations including:
+qst discovers `.desktop` entries from standard XDG locations including:
 
 - `/usr/share/applications`
 - `/usr/local/share/applications`

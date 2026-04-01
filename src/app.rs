@@ -86,7 +86,7 @@ pub struct App {
     pub history: History,
     pub script_title: Option<String>,
     pub script_items: Vec<ScriptItem>,
-    pub flare_ascii: String,
+    pub qst_ascii: String,
     scripts: Vec<ScriptPlugin>,
 }
 
@@ -115,11 +115,11 @@ impl App {
             });
         }
 
-        let flare_ascii = if let Some(path) = &config.flare_ascii.custom_path {
+        let qst_ascii = if let Some(path) = &config.qst_ascii.custom_path {
             let expanded_path = path.replace("~", std::env::var("HOME").unwrap_or_else(|_| String::new()).as_str());
-            fs::read_to_string(expanded_path).unwrap_or_else(|_| include_str!("../assets/flare.txt").to_string())
+            fs::read_to_string(expanded_path).unwrap_or_else(|_| include_str!("../assets/qst.txt").to_string())
         } else {
-            include_str!("../assets/flare.txt").to_string()
+            include_str!("../assets/qst.txt").to_string()
         };
 
         let mut app = Self {
@@ -137,7 +137,7 @@ impl App {
             history,
             script_title: None,
             script_items: Vec::new(),
-            flare_ascii,
+            qst_ascii,
             scripts,
         };
 
@@ -867,7 +867,7 @@ impl App {
 
     fn scripts_dir() -> Option<PathBuf> {
         let mut dir = config_dir()?;
-        dir.push("flare");
+        dir.push("qst");
         dir.push("scripts");
         Some(dir)
     }
@@ -969,7 +969,7 @@ impl App {
         let Some(mut config_dir_path) = config_dir() else {
             return (script_aliases, app_aliases);
         };
-        config_dir_path.push("flare");
+        config_dir_path.push("qst");
 
         let alias_path = if config_dir_path.join("alias.toml").exists() {
             config_dir_path.join("alias.toml")

@@ -1,10 +1,10 @@
-# Flare Core API
+# qst API
 
-This document describes the base Flare launcher internals (`core`) and how plugin packs integrate with it.
+This document describes the base qst launcher internals and how plugin packs integrate with it.
 
 Plugin scripts and community catalog are documented in `plugins/` and in:
 
-- https://github.com/gitanelyon/awesome-flare
+- https://github.com/gitanelyon/awesome-qst
 
 ## Core modules
 
@@ -21,10 +21,10 @@ Plugin scripts and community catalog are documented in `plugins/` and in:
 
 ## Configuration surface
 
-Flare reads:
+qst reads:
 
-- `~/.config/flare/config.toml` (UI + launcher behavior)
-- `~/.config/flare/alias.toml` (optional script/trigger mapping)
+- `~/.config/qst/config.toml` (UI + launcher behavior)
+- `~/.config/qst/alias.toml` (optional script/trigger mapping)
 
 Important toggles in `features`:
 
@@ -39,14 +39,12 @@ Implemented in `App::update_filter` + `App::list_completions`:
 
 - Path queries beginning with `/`, `~/`, `./`, or `../` enter file-selection mode.
 - Tab completion in file-selection mode inserts selected paths.
-- If selected path is executable, Flare runs it directly; otherwise it opens via `xdg-open`.
+- If selected path is executable, qst runs it directly; otherwise it opens via `xdg-open`.
 
 ## Plugin pack integration
 
-`core` is the host launcher.
-
-- Plugin scripts are expected under `~/.config/flare/scripts/`.
+- Plugin scripts are expected under `~/.config/qst/scripts/`.
 - Scripts may be executable files (run directly) or known extension files run via interpreter (`.sh`, `.bash`, `.zsh`, `.fish`, `.py`, `.pl`, `.rb`, `.js`, `.lua`).
-- Script and app aliases are loaded from `~/.config/flare/alias.toml`.
+- Script and app aliases are loaded from `~/.config/qst/alias.toml`.
 
-For plugin implementation details and curated plugins, use the `awesome-flare` repo.
+For plugin implementation details and curated plugins, use the `awesome-qst` repo.

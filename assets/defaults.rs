@@ -32,7 +32,7 @@ AppConfig {
         title_alignment: None,
     },
     outer_box: SectionConfig {
-        title: Some(String::from(" Flare ")),
+        title: Some(String::from(" qst ")),
         fg: vec![],
         bg: vec![],
         border_color: vec![String::from("#cdd6f4")],
@@ -44,7 +44,7 @@ AppConfig {
         visible: Some(false),
         title_alignment: None,
     },
-    flare_ascii: FlareAsciiConfig {
+    qst_ascii: QstAsciiConfig {
         section: SectionConfig {
             title: None,
             fg: vec![],

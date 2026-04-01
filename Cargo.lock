@@ -314,25 +314,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a3076410a55c90011c298b04d0cfa770b00fa04e1e3c97d3f6c9de105a03844"
 
 [[package]]
-name = "flare"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arboard",
- "crossterm",
- "dirs",
- "freedesktop-desktop-entry",
- "libc",
- "libloading",
- "meval",
- "quadrature",
- "ratatui",
- "serde",
- "serde_json",
- "toml",
-]
-
-[[package]]
 name = "flate2"
 version = "1.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -836,6 +817,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7186d3822593aa4393561d186d1393b3923e9d6163d3fbfd6e825e3e6cf3e6a8"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "qst"
+version = "0.8.2"
+dependencies = [
+ "anyhow",
+ "arboard",
+ "crossterm",
+ "dirs",
+ "freedesktop-desktop-entry",
+ "libc",
+ "libloading",
+ "meval",
+ "quadrature",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]

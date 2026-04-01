@@ -22,7 +22,7 @@ fn main() -> Result<()> {
         match args[1].as_str() {
             "--gen-config" => {
                 if let Some(mut path) = config_dir() {
-                    path.push("flare");
+                    path.push("qst");
                     if fs::create_dir_all(&path).is_err() {
                         eprintln!("Error: Unable to create configuration directory: {:?}", path);
                         std::process::exit(1);
@@ -61,11 +61,11 @@ fn main() -> Result<()> {
                 }
             }
             "-h" | "--help" => {
-                println!("Flare - An Application Launcher");
-                println!("Usage: flare [OPTIONS]");
+                println!("Qst - An Application Launcher");
+                println!("Usage: qst [OPTIONS]");
                 println!("");
                 println!("Options:");
-                println!("  --gen-config    Generate a default config file at ~/.config/flare/config.toml");
+                println!("  --gen-config    Generate a default config file at ~/.config/qst/config.toml");
                 println!("                  (Fails if file already exists)");
                 println!("  -h, --help      Print this help message");
                 std::process::exit(0);

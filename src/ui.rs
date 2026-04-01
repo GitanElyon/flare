@@ -35,11 +35,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
     let mut constraints = Vec::new();
     
-    let flare_lines = app.flare_ascii.lines().count() as u16;
+    let qst_lines = app.qst_ascii.lines().count() as u16;
 
-    if config.flare_ascii.section.is_visible() {
-        let p = &config.flare_ascii.padding;
-        constraints.push(Constraint::Length(flare_lines + p.top + p.bottom)); 
+    if config.qst_ascii.section.is_visible() {
+        let p = &config.qst_ascii.padding;
+        constraints.push(Constraint::Length(qst_lines + p.top + p.bottom)); 
     }
 
     if config.input.is_visible() {
@@ -57,11 +57,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
     let mut chunk_index = 0;
 
-    if config.flare_ascii.section.is_visible() {
+    if config.qst_ascii.section.is_visible() {
         let chunk = chunks[chunk_index];
         chunk_index += 1;
         
-        let p = &config.flare_ascii.padding;
+        let p = &config.qst_ascii.padding;
         let inner_area = Rect {
             x: chunk.x + p.left,
             y: chunk.y + p.top,
@@ -69,20 +69,20 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             height: chunk.height.saturating_sub(p.top + p.bottom),
         };
 
-        let ascii_colors = parse_gradient_colors(&config.flare_ascii.gradient_colors);
+        let ascii_colors = parse_gradient_colors(&config.qst_ascii.gradient_colors);
 
         let mut widget = if ascii_colors.len() > 1 {
              let width = app
-                 .flare_ascii
+                 .qst_ascii
                  .lines()
                  .map(|line| line.chars().count() as u16)
                  .max()
                  .unwrap_or(1)
                  .max(1);
-             let height = flare_lines.max(1);
+             let height = qst_lines.max(1);
 
              let lines: Vec<Line> = app
-                 .flare_ascii
+                 .qst_ascii
                  .lines()
                  .enumerate()
                  .map(|(y, line)| {
@@ -92,7 +92,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                          .map(|(x, ch)| {
                              let color = gradient_color_at_point(
                                  &ascii_colors,
-                                 config.flare_ascii.gradient_angle,
+                                 config.qst_ascii.gradient_angle,
                                  x as u16,
                                  y as u16,
                                  width,
@@ -111,18 +111,18 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                  .collect();
              Paragraph::new(lines)
         } else {
-             let mut p_widget = Paragraph::new(app.flare_ascii.as_str());
+             let mut p_widget = Paragraph::new(app.qst_ascii.as_str());
                if let Some(color) = ascii_colors
                   .first()
                   .copied()
-                  .or_else(|| config.flare_ascii.section.fg.first().and_then(|v| crate::config::parse_color(v)))
+                  .or_else(|| config.qst_ascii.section.fg.first().and_then(|v| crate::config::parse_color(v)))
                {
                   p_widget = p_widget.style(Style::default().fg(color));
              }
              p_widget
         };
 
-        widget = widget.alignment(config.flare_ascii.alignment.unwrap_or(crate::config::TextAlignment::Center).into());
+        widget = widget.alignment(config.qst_ascii.alignment.unwrap_or(crate::config::TextAlignment::Center).into());
         f.render_widget(widget, inner_area);
     }
 

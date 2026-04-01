@@ -1,5 +1,5 @@
 {
-  description = "A feature rich customizable TUI app launcher written in Rust";
+  description = "A Community Driven Application CLI Quick Script Tool";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -15,7 +15,7 @@
       in
         {
           packages.default = naersk'.buildPackage {
-            pname = "flare";
+            pname = "qst";
             src = ./.;
           };
 
