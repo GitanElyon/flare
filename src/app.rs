@@ -28,12 +28,30 @@ pub struct AppEntry {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScriptAction {
     CopyToClipboardAndExit,
+    CopyToClipboard,
+    SetStatusMessage,
+    ClearStatusMessage,
     SetSearchQuery,
     AppendToQuery,
+    PrependToQuery,
+    ReplaceLastToken,
+    PopLastToken,
+    PopLastChar,
     ClearQuery,
+    RefreshResults,
     ExecuteAndExit,
     ExecuteAndRefresh,
     None,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ScriptRowMeta {
+    pub display: Option<String>,
+    pub meta: Vec<String>,
+    pub nonselectable: bool,
+    pub permanent: bool,
+    pub active: bool,
+    pub urgent: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +59,7 @@ pub struct ScriptItem {
     pub title: String,
     pub value: String,
     pub action: ScriptAction,
+    pub meta: ScriptRowMeta,
 }
 
 #[derive(Debug, Clone)]
@@ -187,6 +206,147 @@ impl App {
         self.search_cursor = Self::char_count(&self.search_query);
     }
 
+    fn script_item_is_selectable(&self, index: usize) -> bool {
+        self.script_items
+            .get(index)
+            .map(|item| !item.meta.nonselectable)
+            .unwrap_or(false)
+    }
+
+    fn first_selectable_script_index(&self) -> Option<usize> {
+        self.script_items
+            .iter()
+            .enumerate()
+            .find_map(|(index, item)| if item.meta.nonselectable { None } else { Some(index) })
+    }
+
+    fn last_selectable_script_index(&self) -> Option<usize> {
+        self.script_items
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, item)| if item.meta.nonselectable { None } else { Some(index) })
+    }
+
+    fn parse_meta_bool(value: &str) -> bool {
+        !matches!(value.trim().to_ascii_lowercase().as_str(), "false" | "0" | "no" | "off")
+    }
+
+    fn parse_script_row_meta(text: &str) -> (String, ScriptRowMeta) {
+        let trimmed = text.trim();
+        if trimmed.is_empty() || trimmed.starts_with("/@meta") {
+            return (trimmed.to_string(), ScriptRowMeta::default());
+        }
+
+        let Some(meta_index) = trimmed.find(" @meta:") else {
+            return (trimmed.to_string(), ScriptRowMeta::default());
+        };
+
+        let visible = trimmed[..meta_index].trim_end().to_string();
+        let suffix = &trimmed[meta_index + 1..];
+        let meta = Self::parse_script_row_meta_suffix(suffix);
+        (visible, meta)
+    }
+
+    fn parse_script_row_meta_suffix(suffix: &str) -> ScriptRowMeta {
+        let mut meta = ScriptRowMeta::default();
+        let cleaned = suffix.trim();
+        let cleaned = cleaned.strip_prefix("@meta:").unwrap_or(cleaned);
+
+        for raw_chunk in cleaned.split(" @meta:") {
+            let chunk = raw_chunk.trim();
+            if chunk.is_empty() {
+                continue;
+            }
+
+            let (key, value) = match chunk.split_once('=') {
+                Some((key, value)) => (key.trim(), value.trim()),
+                None => (chunk, "true"),
+            };
+
+            match key {
+                "display" => {
+                    if !value.is_empty() {
+                        meta.display = Some(value.to_string());
+                    }
+                }
+                "meta" => {
+                    meta.meta.extend(
+                        value
+                            .split(',')
+                            .map(|entry| entry.trim())
+                            .filter(|entry| !entry.is_empty())
+                            .map(|entry| entry.to_string()),
+                    );
+                }
+                "nonselectable" => meta.nonselectable = Self::parse_meta_bool(value),
+                "permanent" => meta.permanent = Self::parse_meta_bool(value),
+                "active" => meta.active = Self::parse_meta_bool(value),
+                "urgent" => meta.urgent = Self::parse_meta_bool(value),
+                _ => {}
+            }
+        }
+
+        meta
+    }
+
+    fn apply_script_row_meta(target: &mut ScriptRowMeta, source: ScriptRowMeta) {
+        if source.display.is_some() {
+            target.display = source.display;
+        }
+        if !source.meta.is_empty() {
+            target.meta.extend(source.meta);
+        }
+        target.nonselectable |= source.nonselectable;
+        target.permanent |= source.permanent;
+        target.active |= source.active;
+        target.urgent |= source.urgent;
+    }
+
+    fn parse_script_row_text(text: &str) -> (String, ScriptRowMeta) {
+        let (visible, meta) = Self::parse_script_row_meta(text);
+        (visible, meta)
+    }
+
+    pub fn pop_last_query_token(&mut self) {
+        let trimmed = self.search_query.trim_end();
+
+        if trimmed.is_empty() {
+            self.set_search_query(String::new());
+            return;
+        }
+
+        if let Some(last_ws_idx) = trimmed.rfind(char::is_whitespace) {
+            self.set_search_query(trimmed[..=last_ws_idx].to_string());
+        } else {
+            self.set_search_query(String::new());
+        }
+    }
+
+    pub fn replace_last_query_token(&mut self, replacement: &str) {
+        let trimmed = self.search_query.trim_end();
+
+        if trimmed.is_empty() {
+            self.set_search_query(replacement.to_string());
+            return;
+        }
+
+        if let Some(last_ws_idx) = trimmed.rfind(char::is_whitespace) {
+            self.set_search_query(format!("{}{}", &trimmed[..=last_ws_idx], replacement));
+        } else {
+            self.set_search_query(replacement.to_string());
+        }
+    }
+
+    pub fn pop_last_query_char(&mut self) {
+        let mut chars: Vec<char> = self.search_query.chars().collect();
+        if chars.is_empty() {
+            return;
+        }
+        chars.pop();
+        self.set_search_query(chars.into_iter().collect());
+    }
+
     pub fn sort_entries(&mut self) {
         let history = &self.history;
         let recent_first = self.config.features.recent_first;
@@ -239,7 +399,7 @@ impl App {
             if count == 0 {
                 self.list_state.select(None);
             } else {
-                self.list_state.select(Some(0));
+                self.list_state.select(self.first_selectable_script_index());
             }
             return;
         }
@@ -340,6 +500,32 @@ impl App {
         if len == 0 {
             return;
         }
+
+        if self.mode == AppMode::ScriptResults {
+            let start = match self.list_state.selected() {
+                Some(i) => i,
+                None => {
+                    if delta >= 0 {
+                        len - 1
+                    } else {
+                        0
+                    }
+                }
+            };
+
+            let mut current = start;
+            for _ in 0..len {
+                current = ((current as i32 + delta).rem_euclid(len as i32)) as usize;
+                if self.script_item_is_selectable(current) {
+                    self.list_state.select(Some(current));
+                    return;
+                }
+            }
+
+            self.list_state.select(None);
+            return;
+        }
+
         let i = match self.list_state.selected() {
             Some(i) => {
                 let new_i = (i as i32 + delta).rem_euclid(len as i32);
@@ -358,7 +544,11 @@ impl App {
         };
 
         if len > 0 {
-            self.list_state.select(Some(0));
+            if self.mode == AppMode::ScriptResults {
+                self.list_state.select(self.first_selectable_script_index());
+            } else {
+                self.list_state.select(Some(0));
+            }
         }
     }
 
@@ -370,7 +560,11 @@ impl App {
         };
 
         if len > 0 {
-            self.list_state.select(Some(len - 1));
+            if self.mode == AppMode::ScriptResults {
+                self.list_state.select(self.last_selectable_script_index());
+            } else {
+                self.list_state.select(Some(len - 1));
+            }
         }
     }
 
@@ -404,6 +598,9 @@ impl App {
         if self.mode == AppMode::ScriptResults {
             if let Some(i) = self.list_state.selected() {
                 if let Some(item) = self.script_items.get(i).cloned() {
+                    if item.meta.nonselectable {
+                        return;
+                    }
                     self.apply_script_action(&item);
                 }
             }
@@ -912,10 +1109,10 @@ impl App {
         self.mode = AppMode::ScriptResults;
 
         match self.run_script(&script, &payload) {
-            Ok((title, items)) => {
+            Ok((title, message, items)) => {
                 self.script_title = title.or_else(|| Some(format!(" {} ", script.id)));
                 self.script_items = items;
-                self.status_message = None;
+                self.status_message = message;
             }
             Err(err) => {
                 self.script_title = Some(format!(" {} ", script.id));
@@ -923,6 +1120,7 @@ impl App {
                     title: format!("Script error: {}", err),
                     value: String::new(),
                     action: ScriptAction::None,
+                    meta: ScriptRowMeta::default(),
                 }];
             }
         }
@@ -930,7 +1128,7 @@ impl App {
         true
     }
 
-    fn run_script(&self, script: &ScriptPlugin, payload: &str) -> Result<(Option<String>, Vec<ScriptItem>), String> {
+    fn run_script(&self, script: &ScriptPlugin, payload: &str) -> Result<(Option<String>, Option<String>, Vec<ScriptItem>), String> {
         let mut command = if let Some(interpreter) = script.interpreter {
             let mut command = Command::new(interpreter);
             command.arg(&script.path);
@@ -958,8 +1156,9 @@ impl App {
         Ok(Self::parse_script_output(&stdout))
     }
 
-    fn parse_script_output(output: &str) -> (Option<String>, Vec<ScriptItem>) {
+    fn parse_script_output(output: &str) -> (Option<String>, Option<String>, Vec<ScriptItem>) {
         let mut title: Option<String> = None;
+        let mut message: Option<String> = None;
         let mut items = Vec::new();
         let mut default_action = ScriptAction::None;
         let mut next_item_action: Option<ScriptAction> = None;
@@ -973,6 +1172,14 @@ impl App {
             if let Some(directive) = line.strip_prefix("f! ") {
                 if let Some(value) = directive.strip_prefix("title ") {
                     title = Some(format!(" {} ", value.trim()));
+                    continue;
+                }
+                if let Some(value) = directive.strip_prefix("message ") {
+                    message = Some(value.trim().to_string());
+                    continue;
+                }
+                if directive == "clear_message" {
+                    message = None;
                     continue;
                 }
                 if let Some(value) = directive.strip_prefix("action ") {
@@ -994,32 +1201,53 @@ impl App {
                 if let Some(value) = directive.strip_prefix("single ") {
                     let mut parts = value.splitn(2, '|');
                     let query = parts.next().unwrap_or_default().trim();
-                    let result = parts.next().unwrap_or_default().trim();
+                    let (result_text, result_meta) = Self::parse_script_row_text(parts.next().unwrap_or_default().trim());
                     let label = if query.is_empty() {
-                        result.to_string()
+                        result_text.clone()
                     } else {
-                        format!("{} = {}", query, result)
+                        format!("{} = {}", query, result_text)
                     };
                     items.clear();
                     items.push(ScriptItem {
                         title: label,
-                        value: result.to_string(),
+                        value: result_text,
                         action: next_item_action.take().unwrap_or(default_action.clone()),
+                        meta: result_meta,
                     });
                     continue;
                 }
                 if let Some(value) = directive.strip_prefix("item ") {
                     let mut parts = value.splitn(3, '|');
-                    let item_title = parts.next().unwrap_or_default().trim();
-                    let item_value = parts.next().unwrap_or(item_title).trim();
-                    let explicit_action = parts.next().map(|s| Self::parse_script_action(s.trim()));
+                    let (item_title, title_meta) = Self::parse_script_row_text(parts.next().unwrap_or_default().trim());
+                    let value_part = parts.next().unwrap_or(item_title.as_str()).trim();
+                    let (item_value, value_meta) = Self::parse_script_row_text(value_part);
+                    let (explicit_action, action_meta) = parts
+                        .next()
+                        .and_then(|s| {
+                            let (action_text, meta) = Self::parse_script_row_text(s.trim());
+                            let action_text = action_text.trim();
+                            if action_text.is_empty() {
+                                None
+                            } else {
+                                Some((Self::parse_script_action(action_text), meta))
+                            }
+                        })
+                        .unwrap_or((ScriptAction::None, ScriptRowMeta::default()));
                     if !item_title.is_empty() {
+                        let mut meta = ScriptRowMeta::default();
+                        Self::apply_script_row_meta(&mut meta, title_meta);
+                        Self::apply_script_row_meta(&mut meta, value_meta);
+                        Self::apply_script_row_meta(&mut meta, action_meta);
+                        let action = if explicit_action != ScriptAction::None {
+                            explicit_action
+                        } else {
+                            next_item_action.take().unwrap_or(default_action.clone())
+                        };
                         items.push(ScriptItem {
-                            title: item_title.to_string(),
-                            value: item_value.to_string(),
-                            action: explicit_action
-                                .or_else(|| next_item_action.take())
-                                .unwrap_or(default_action.clone()),
+                            title: item_title,
+                            value: item_value,
+                            action,
+                            meta,
                         });
                     }
                     continue;
@@ -1028,27 +1256,40 @@ impl App {
             }
 
             let mut parts = line.splitn(2, '|');
-            let item_title = parts.next().unwrap_or_default().trim();
+            let (item_title, title_meta) = Self::parse_script_row_text(parts.next().unwrap_or_default().trim());
             if item_title.is_empty() {
                 continue;
             }
-            let item_value = parts.next().unwrap_or(item_title).trim();
+            let raw_value = parts.next().unwrap_or(item_title.as_str()).trim();
+            let (item_value, value_meta) = Self::parse_script_row_text(raw_value);
+            let mut meta = ScriptRowMeta::default();
+            Self::apply_script_row_meta(&mut meta, title_meta);
+            Self::apply_script_row_meta(&mut meta, value_meta);
             items.push(ScriptItem {
-                title: item_title.to_string(),
-                value: item_value.to_string(),
+                title: item_title,
+                value: item_value,
                 action: next_item_action.take().unwrap_or(default_action.clone()),
+                meta,
             });
         }
 
-        (title, items)
+        (title, message, items)
     }
 
     fn parse_script_action(value: &str) -> ScriptAction {
         match value {
             "CopyToClipboardAndExit" => ScriptAction::CopyToClipboardAndExit,
+            "CopyToClipboard" => ScriptAction::CopyToClipboard,
+            "SetStatusMessage" => ScriptAction::SetStatusMessage,
+            "ClearStatusMessage" => ScriptAction::ClearStatusMessage,
             "SetSearchQuery" => ScriptAction::SetSearchQuery,
             "AppendToQuery" => ScriptAction::AppendToQuery,
+            "PrependToQuery" => ScriptAction::PrependToQuery,
+            "ReplaceLastToken" => ScriptAction::ReplaceLastToken,
+            "PopLastToken" => ScriptAction::PopLastToken,
+            "PopLastChar" => ScriptAction::PopLastChar,
             "ClearQuery" => ScriptAction::ClearQuery,
+            "RefreshResults" => ScriptAction::RefreshResults,
             "ExecuteAndExit" => ScriptAction::ExecuteAndExit,
             "ExecuteAndRefresh" => ScriptAction::ExecuteAndRefresh,
             _ => ScriptAction::None,
@@ -1063,9 +1304,41 @@ impl App {
                 self.update_filter();
             }
             ScriptAction::AppendToQuery => self.insert_search_text(&item.value),
+            ScriptAction::PrependToQuery => {
+                self.set_search_query(format!("{}{}", item.value, self.search_query));
+                self.update_filter();
+            }
+            ScriptAction::ReplaceLastToken => {
+                self.replace_last_query_token(&item.value);
+                self.update_filter();
+            }
+            ScriptAction::PopLastToken => {
+                self.pop_last_query_token();
+                self.update_filter();
+            }
+            ScriptAction::PopLastChar => {
+                self.pop_last_query_char();
+                self.update_filter();
+            }
             ScriptAction::ClearQuery => {
                 self.set_search_query(String::new());
                 self.update_filter();
+            }
+            ScriptAction::RefreshResults => {
+                self.update_filter();
+            }
+            ScriptAction::CopyToClipboard => {
+                if let Err(err) = self.copy_to_clipboard(&item.value) {
+                    self.status_message = Some(format!("Clipboard failed: {}", err));
+                } else {
+                    self.status_message = Some("Copied to clipboard".to_string());
+                }
+            }
+            ScriptAction::SetStatusMessage => {
+                self.status_message = Some(item.value.clone());
+            }
+            ScriptAction::ClearStatusMessage => {
+                self.status_message = None;
             }
             ScriptAction::CopyToClipboardAndExit => {
                 if let Err(err) = self.copy_to_clipboard(&item.value) {
