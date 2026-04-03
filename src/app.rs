@@ -1169,7 +1169,7 @@ impl App {
                 continue;
             }
 
-            if let Some(directive) = line.strip_prefix("f! ") {
+            if let Some(directive) = line.strip_prefix("qst! ") {
                 if let Some(value) = directive.strip_prefix("title ") {
                     title = Some(format!(" {} ", value.trim()));
                     continue;
